@@ -1,75 +1,141 @@
--- СКРИПТ-СНИФФЕР ДЛЯ GROW A GARDEN 2
--- НАЖМИ F9 ЧТОБЫ УВИДЕТЬ КОНСОЛЬ
+-- РАСШИРЕННЫЙ СНИФФЕР ДЛЯ GROW A GARDEN 2
+-- НАЖМИ F9 ДЛЯ КОНСОЛИ
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local TS = game:GetService("TeleportService")
 
-print("========== RYZEN SNIFFER ==========")
-print("Ищу Remote Events в ReplicatedStorage...")
+local allEvents = {}
 
--- НАХОДИМ ВСЕ СОБЫТИЯ
-local events = {}
-local folders = {RS}
+print("═══════════════════════════════════════════════")
+print("🔍 RYZEN SNIFFER v2 - ИЩУ ВСЕ REMOTE EVENTS")
+print("═══════════════════════════════════════════════")
 
--- ОБХОДИМ ВСЕ ПАПКИ
-for _, obj in pairs(RS:GetChildren()) do
-    if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-        table.insert(events, obj.Name)
-        print("🔹 НАЙДЕНО СОБЫТИЕ:", obj.Name)
-    elseif obj:IsA("Folder") then
-        for _, sub in pairs(obj:GetChildren()) do
-            if sub:IsA("RemoteEvent") or sub:IsA("RemoteFunction") then
-                table.insert(events, obj.Name .. "/" .. sub.Name)
-                print("🔸 В ПАПКЕ " .. obj.Name .. ":", sub.Name)
+-- ФУНКЦИЯ ОБХОДА ВСЕХ ДИРЕКТОРИЙ
+local function scanFolder(folder, path)
+    path = path or ""
+    for _, child in pairs(folder:GetChildren()) do
+        local currentPath = path ~= "" and path .. "/" .. child.Name or child.Name
+        
+        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+            table.insert(allEvents, currentPath)
+            print("🎯 [EVENT] " .. currentPath)
+        elseif child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+            -- ДУБЛИРУЕМ НА ВСЯКИЙ
+        end
+        
+        if child:IsA("Folder") or child:IsA("Model") then
+            scanFolder(child, currentPath)
+        end
+    end
+end
+
+-- СКАНИРУЕМ ReplicatedStorage
+print("\n📁 СКАНИРУЮ ReplicatedStorage...")
+scanFolder(RS)
+
+-- СКАНИРУЕМ также другие возможные места
+local otherPlaces = {game:GetService("Players").LocalPlayer.PlayerScripts, game:GetService("ScriptContext")}
+for _, place in pairs(otherPlaces) do
+    if place then
+        print("\n📁 СКАНИРУЮ " .. place.Name .. "...")
+        scanFolder(place)
+    end
+end
+
+print("\n═══════════════════════════════════════════════")
+print("📊 ВСЕГО НАЙДЕНО СОБЫТИЙ: " .. #allEvents)
+print("═══════════════════════════════════════════════")
+
+-- ОТДЕЛЬНО ВЫДЕЛЯЕМ ПОДОЗРИТЕЛЬНЫЕ НА ФАРМ
+local farmKeywords = {"farm", "harvest", "sell", "plant", "seed", "aura", "water", "fertil", "crop", "fruit", "garden", "plot", "grow", "collect", "buy", "upgrade", "shop", "inventory", "tool", "item"}
+local found = {}
+
+print("\n🔎 ПОИСК ПО КЛЮЧЕВЫМ СЛОВАМ:")
+for _, keyword in pairs(farmKeywords) do
+    for _, eventName in pairs(allEvents) do
+        if string.find(string.lower(eventName), keyword) then
+            if not found[eventName] then
+                found[eventName] = true
+                print("   ✅ [" .. keyword:upper() .. "] → " .. eventName)
             end
         end
     end
 end
 
-print("========== ИТОГО НАЙДЕНО: " .. #events .. " ==========")
-
--- ПОПРОБУЕМ НАЙТИ СОБЫТИЯ ПО КЛЮЧЕВЫМ СЛОВАМ
-local keywords = {"Harvest", "Sell", "Plant", "Aura", "Water", "Fertilize", "Buy", "Upgrade"}
-
-print("========== ПОИСК ПО КЛЮЧЕВЫМ СЛОВАМ ==========")
-for _, keyword in pairs(keywords) do
-    for _, name in pairs(events) do
-        if string.find(string.lower(name), string.lower(keyword)) then
-            print("✅", keyword, "→", name)
+-- ТАКЖЕ ПОСМОТРИМ ВСЕ СВОЙСТВА ИГРОКА (может быть оттуда вызов)
+print("\n👤 ИНФО О ЛОКАЛЬНОМ ИГРОКЕ (может пригодиться):")
+local char = LocalPlayer.Character
+if char then
+    for _, child in pairs(char:GetChildren()) do
+        if child:IsA("Tool") then
+            print("   🛠️ Есть инструмент: " .. child.Name)
         end
     end
 end
 
-print("========== СНИФФЕР ЗАВЕРШЕН ==========")
-print("Отправь мне ТОЧНЫЕ названия событий, особенно для:")
-print("- Сбора урожая")
-print("- Продажи")
-print("- Посадки семян")
-print("- Сбора авры")
-
--- СОЗДАЕМ ПРОСТЕНЬКУЮ КНОПКУ ДЛЯ ТЕСТА
+-- GUI ДЛЯ КОПИРОВАНИЯ
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RyzenSniffer"
-pcall(function() screenGui.Parent = game.CoreGui end)
+screenGui.Name = "RyzenSnifferV2"
+pcall(function() screenGui.Parent = game.CoreGui or game.Players.LocalPlayer.PlayerGui end)
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 100)
-frame.Position = UDim2.new(0.5, -100, 0.5, -50)
-frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-frame.BackgroundTransparency = 0.5
+frame.Size = UDim2.new(0, 280, 0, 150)
+frame.Position = UDim2.new(0.5, -140, 0.5, -75)
+frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+frame.BackgroundTransparency = 0.4
 frame.Parent = screenGui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
-local btn = Instance.new("TextButton")
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Text = "🔍 RYZEN SNIFFER v2"
+title.TextColor3 = Color3.fromRGB(0, 255, 0)
+title.BackgroundTransparency = 1
+
+local btn = Instance.new("TextButton", frame)
 btn.Size = UDim2.new(0.8, 0, 0, 40)
-btn.Position = UDim2.new(0.1, 0, 0.3, 0)
-btn.Text = "📋 КОПИРОВАТЬ СОБЫТИЯ"
-btn.Parent = frame
+btn.Position = UDim2.new(0.1, 0, 0.35, 0)
+btn.Text = "📋 КОПИРОВАТЬ ВСЕ"
+btn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
 btn.MouseButton1Click:Connect(function()
-    local clip = setclipboard or toclipboard or function() end
-    local text = table.concat(events, "\n")
-    pcall(function() clip(text) end)
-    print("СОБЫТИЯ СКОПИРОВАНЫ В БУФЕР")
+    local output = table.concat(allEvents, "\n")
+    pcall(function()
+        if setclipboard then setclipboard(output)
+        elseif toclipboard then toclipboard(output)
+        end
+    end)
+    print("✅ СКОПИРОВАНО " .. #allEvents .. " СОБЫТИЙ")
+    btn.Text = "✅ СКОПИРОВАНО!"
+    wait(1)
+    btn.Text = "📋 КОПИРОВАТЬ ВСЕ"
 end)
 
-print("Нажми на кнопку 'КОПИРОВАТЬ СОБЫТИЯ' и вставь мне список!")
+local btn2 = Instance.new("TextButton", frame)
+btn2.Size = UDim2.new(0.8, 0, 0, 40)
+btn2.Position = UDim2.new(0.1, 0, 0.7, 0)
+btn2.Text = "🎮 ПОПРОБОВАТЬ ТРИГГЕР"
+btn2.BackgroundColor3 = Color3.fromRGB(150, 100, 0)
+Instance.new("UICorner", btn2).CornerRadius = UDim.new(0, 5)
+btn2.MouseButton1Click:Connect(function()
+    print("\n🔨 ПЫТАЮСЬ НАЙТИ РАБОЧИЕ СОБЫТИЯ...")
+    for _, name in pairs(allEvents) do
+        local event = RS:FindFirstChild(name)
+        if event and (event:IsA("RemoteEvent") or event:IsA("RemoteFunction")) then
+            pcall(function()
+                if event:IsA("RemoteEvent") then
+                    event:FireServer("test")
+                    print("   📡 Попытка триггера: " .. name)
+                end
+            end)
+        end
+    end
+    print("✅ ТРИГГЕР ЗАВЕРШЕН (если что-то сработало - увидишь в игре)")
+end)
+
+print("\n═══════════════════════════════════════════════")
+print("📋 Нажми КНОПКУ НА ЭКРАНЕ чтобы скопировать список")
+print("🔨 Нажми 'ПОПРОБОВАТЬ ТРИГГЕР' для поиска рабочих событий")
+print("═══════════════════════════════════════════════")
