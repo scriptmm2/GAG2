@@ -1,123 +1,40 @@
---██╗░░░██╗███████╗██╗░░░██╗███████╗███╗░░██╗  ███████╗███╗░░██╗██╗███████╗███████╗███████╗██████╗░
---██║░░░██║██╔════╝╚██╗░██╔╝██╔════╝████╗░██║  ██╔════╝████╗░██║██║██╔════╝██╔════╝██╔════╝██╔══██╗
---╚██╗░██╔╝█████╗░░░╚████╔╝░█████╗░░██╔██╗██║  █████╗░░██╔██╗██║██║█████╗░░█████╗░░█████╗░░██████╔╝
---░╚████╔╝░██╔══╝░░░░╚██╔╝░░██╔══╝░░██║╚████║  ██╔══╝░░██║╚████║██║██╔══╝░░██╔══╝░░██╔══╝░░██╔══██╗
---░░╚██╔╝░░███████╗░░░██║░░░███████╗██║░╚███║  ██║░░░░░██║░╚███║██║██║░░░░░███████╗███████╗██║░░██║
---░░░╚═╝░░░╚══════╝░░░╚═╝░░░╚══════╝╚═╝░░╚══╝  ╚═╝░░░░░╚═╝░░╚══╝╚═╝╚═╝░░░░░╚══════╝╚══════╝╚═╝░░╚═╝
--- RYZEN SNIFFER v7 | 100% WORKING | AUTO COPY EVENTS
+-- RYZEN SNIFFER v8 | ДЛЯ ТЕЛЕФОНА | ПОКАЗЫВАЕТ В УВЕДОМЛЕНИЯХ
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
-local StarterGui = game:GetService("StarterGui")
 
-local allEvents = {}
-local capturedEvents = {}
-local saveText = ""
+local foundEvents = {}
+local lastNotify = 0
 
--- ФУНКЦИЯ УВЕДОМЛЕНИЯ
-local function notify(msg, duration)
-    duration = duration or 2
+-- УВЕДОМЛЕНИЕ
+local function notify(msg)
     pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = "🔍 RYZEN SNIFFER",
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "🔍 RYZEN",
             Text = msg,
-            Duration = duration
+            Duration = 4
         })
     end)
-    print("[RYZEN] " .. msg)
+    print(msg)
 end
 
--- ФУНКЦИЯ КОПИРОВАНИЯ В БУФЕР (РАБОТАЕТ 100%)
-local function copyToClipboard(text)
-    local success = false
-    pcall(function()
-        if setclipboard then
-            setclipboard(text)
-            success = true
-        elseif toclipboard then
-            toclipboard(text)
-            success = true
-        elseif Clipboard then
-            Clipboard:set(text)
-            success = true
-        end
-    end)
-    return success
-end
-
--- СКАНИРУЕМ ВСЕ ПАПКИ И СОБИРАЕМ СОБЫТИЯ
-local function scanAll()
-    local count = 0
-    local function scan(obj, path)
-        path = path or ""
-        for _, child in pairs(obj:GetChildren()) do
-            local fullPath = path ~= "" and path .. "/" .. child.Name or child.Name
-            if child:IsA("RemoteEvent") then
-                table.insert(allEvents, {name = fullPath, type = "Event"})
-                count = count + 1
-            elseif child:IsA("RemoteFunction") then
-                table.insert(allEvents, {name = fullPath, type = "Function"})
-                count = count + 1
-            end
-            if child:IsA("Folder") or child:IsA("Model") then
-                scan(child, fullPath)
-            end
-        end
-    end
-    scan(RS)
-    return count
-end
-
-local total = scanAll()
-notify("📡 НАЙДЕНО " .. total .. " СОБЫТИЙ", 3)
-
--- ФИЛЬТРУЕМ ФАРМ-СОБЫТИЯ
-local farmEvents = {}
-local keywords = {"harvest", "sell", "plant", "aura", "water", "fertil", "crop", "fruit", "plot", "garden", "grow", "collect", "buy", "seed", "farm", "pick", "gather", "reap"}
-
-for _, event in pairs(allEvents) do
-    local lower = string.lower(event.name)
-    for _, kw in pairs(keywords) do
-        if string.find(lower, kw) then
-            table.insert(farmEvents, event.name)
-            break
-        end
-    end
-end
-
-if #farmEvents > 0 then
-    notify("🌾 ФАРМ-СОБЫТИЙ: " .. #farmEvents, 2)
-    local farmText = table.concat(farmEvents, "\n")
-    copyToClipboard(farmText)
-    notify("📋 СПИСОК ФАРМ-СОБЫТИЙ В БУФЕРЕ!", 3)
-else
-    notify("⚠️ ФАРМ-СОБЫТИЙ НЕ НАЙДЕНО, НАЧНИ ИГРАТЬ", 3)
-end
-
--- ███████████ ПЕРЕХВАТ ВЫЗОВОВ (ГЛАВНОЕ) ███████████
-
-local hookCount = 0
-local hookedEvents = {}
-
-for _, event in pairs(RS:GetDescendants()) do
-    if (event:IsA("RemoteEvent") or event:IsA("RemoteFunction")) and not hookedEvents[event] then
-        hookedEvents[event] = true
-        
-        if event:IsA("RemoteEvent") then
+-- ПЕРЕХВАТ ВСЕХ ВЫЗОВОВ
+local function hookEvents()
+    for _, event in pairs(RS:GetDescendants()) do
+        if event:IsA("RemoteEvent") and not event._hooked then
+            event._hooked = true
             local oldFire = event.FireServer
             local eventName = event:GetFullName()
             
             event.FireServer = function(self, ...)
-                -- ЗАПОМИНАЕМ СОБЫТИЕ
-                if not capturedEvents[eventName] then
-                    capturedEvents[eventName] = true
-                    hookCount = hookCount + 1
+                if not foundEvents[eventName] then
+                    foundEvents[eventName] = true
                     
                     -- ПОЛУЧАЕМ АРГУМЕНТЫ
                     local args = {...}
                     local argStr = ""
-                    for i = 1, math.min(3, #args) do
+                    for i = 1, math.min(2, #args) do
                         local arg = args[i]
                         if type(arg) == "Instance" then
                             argStr = argStr .. "[" .. arg.ClassName .. ":" .. (arg.Name or "?") .. "] "
@@ -125,41 +42,41 @@ for _, event in pairs(RS:GetDescendants()) do
                             argStr = argStr .. '"' .. arg .. '" '
                         elseif type(arg) == "number" then
                             argStr = argStr .. arg .. " "
-                        elseif type(arg) == "boolean" then
-                            argStr = argStr .. tostring(arg) .. " "
-                        else
-                            argStr = argStr .. type(arg) .. " "
                         end
                     end
                     
-                    -- ПОКАЗЫВАЕМ УВЕДОМЛЕНИЕ
-                    notify("🔥 " .. eventName, 2)
+                    -- ПОКАЗЫВАЕМ В УВЕДОМЛЕНИИ
+                    local total = 0
+                    for _ in pairs(foundEvents) do total = total + 1 end
                     
-                    -- КОПИРУЕМ В БУФЕР
-                    copyToClipboard(eventName)
-                    
-                    -- СОХРАНЯЕМ В ТЕКСТ
-                    saveText = saveText .. eventName .. "\n"
+                    notify("🔹 " .. eventName)
                     if argStr ~= "" then
-                        saveText = saveText .. "   → " .. argStr .. "\n"
+                        notify("   → " .. argStr)
                     end
+                    notify("📌 НАЙДЕНО: " .. total .. " шт.")
                 end
                 
                 return oldFire(self, ...)
             end
         end
-        
-        if event:IsA("RemoteFunction") then
+    end
+end
+
+-- ПЕРЕХВАТ RemoteFunction
+local function hookFunctions()
+    for _, event in pairs(RS:GetDescendants()) do
+        if event:IsA("RemoteFunction") and not event._hooked then
+            event._hooked = true
             local oldInvoke = event.InvokeServer
             local eventName = event:GetFullName()
             
             event.InvokeServer = function(self, ...)
-                if not capturedEvents[eventName] then
-                    capturedEvents[eventName] = true
-                    hookCount = hookCount + 1
-                    notify("⚡ " .. eventName, 2)
-                    copyToClipboard(eventName)
-                    saveText = saveText .. eventName .. "\n"
+                if not foundEvents[eventName] then
+                    foundEvents[eventName] = true
+                    local total = 0
+                    for _ in pairs(foundEvents) do total = total + 1 end
+                    notify("⚡ " .. eventName)
+                    notify("📌 НАЙДЕНО: " .. total .. " шт.")
                 end
                 return oldInvoke(self, ...)
             end
@@ -167,69 +84,50 @@ for _, event in pairs(RS:GetDescendants()) do
     end
 end
 
-notify("🎯 ПЕРЕХВАТ АКТИВИРОВАН! ТЕПЕРЬ ИГРАЙ", 3)
-notify("👉 ДЕЛАЙ ДЕЙСТВИЯ: СБОР, ПОСАДКА, ПРОДАЖА", 3)
+hookEvents()
+hookFunctions()
 
--- ███████████ АВТО-СОХРАНЕНИЕ КАЖДЫЕ 30 СЕКУНД ███████████
+-- ОБНОВЛЯЕМ ПЕРЕХВАТ КОГДА ДОБАВЛЯЮТСЯ НОВЫЕ СОБЫТИЯ
+RS.ChildAdded:Connect(function()
+    wait(0.5)
+    hookEvents()
+    hookFunctions()
+end)
 
+notify("✅ RYZEN SNIFFER ЗАПУЩЕН!")
+notify("👉 ТЕПЕРЬ ДЕЛАЙ ДЕЙСТВИЯ В ИГРЕ")
+notify("🌽 СОБИРАЙ УРОЖАЙ | 💰 ПРОДАВАЙ | 🌱 САЖАЙ")
+
+-- ПОКАЗЫВАЕМ ВСЕ НАЙДЕННЫЕ СОБЫТИЯ ЧЕРЕЗ 1 МИНУТУ
 spawn(function()
-    while true do
-        wait(30)
-        local count = 0
-        for _ in pairs(capturedEvents) do count = count + 1 end
+    wait(60)
+    local list = ""
+    for name in pairs(foundEvents) do
+        list = list .. name .. "\n"
+    end
+    
+    if list ~= "" then
+        notify("📋 СПИСОК НАЙДЕННЫХ СОБЫТИЙ (" .. #list .. " символов)")
+        notify("👉 ПЕРЕПИШИ ИХ ВРУЧНУЮ И ОТПРАВЬ МНЕ")
         
-        if count > 0 then
-            notify("📊 СОБРАНО СОБЫТИЙ: " .. count, 2)
-            copyToClipboard(saveText)
-            notify("📋 ВЕСЬ СПИСОК В БУФЕРЕ!", 2)
+        -- ПОКАЗЫВАЕМ ПО 1 СОБЫТИЮ
+        for name in pairs(foundEvents) do
+            wait(2)
+            notify(name)
         end
+    else
+        notify("⚠️ НИЧЕГО НЕ ОБНАРУЖЕНО")
+        notify("👉 СДЕЛАЙ ХОТЯ БЫ 1 ДЕЙСТВИЕ В ИГРЕ")
     end
 end)
 
--- ███████████ СОХРАНЯЕМ ФАЙЛ ЕСЛИ ЕСТЬ ВОЗМОЖНОСТЬ ███████████
-
-pcall(function()
-    if writefile then
-        writefile("ryzen_events_list.txt", saveText)
-        notify("💾 СОХРАНЕНО В ryzen_events_list.txt", 2)
-    end
-end)
-
--- ███████████ КОМАНДА В ЧАТЕ (ЗАПАСНОЙ ВАРИАНТ) ███████████
-
-LP.Chatted:Connect(function(msg)
-    if msg == "/ryzen" then
-        local total = 0
-        local list = ""
-        for name in pairs(capturedEvents) do
-            total = total + 1
-            list = list .. name .. "\n"
-        end
-        if total > 0 then
-            copyToClipboard(list)
-            notify("📋 " .. total .. " СОБЫТИЙ СКОПИРОВАНО!", 3)
-        else
-            notify("⚠️ ПОКА НИЧЕГО НЕ НАЙДЕНО. ИГРАЙ!", 2)
-        end
-    end
-end)
-
--- ███████████ ВЫВОД В КОНСОЛЬ (ДЛЯ ПК) ███████████
-
-print("")
-print("═══════════════════════════════════════════════════════════════")
-print("🔥 RYZEN SNIFFER v7 ЗАПУЩЕН")
-print("═══════════════════════════════════════════════════════════════")
-print("📡 ВСЕГО НАЙДЕНО: " .. total .. " СОБЫТИЙ")
-print("🌾 ФАРМ-СОБЫТИЙ: " .. #farmEvents)
-print("")
-print("🎯 ТЕПЕРЬ ДЕЛАЙ ДЕЙСТВИЯ В ИГРЕ:")
-print("   • СОБИРАЙ УРОЖАЙ")
-print("   • САЖАЙ СЕМЕНА")
-print("   • ПРОДАВАЙ ФРУКТЫ")
-print("   • СОБИРАЙ АВРУ")
-print("")
-print("📋 КАЖДЫЙ ВЫЗОВ БУДЕТ АВТОМАТИЧЕСКИ СКОПИРОВАН В БУФЕР")
-print("📋 НАПИШИ /ryzen В ЧАТЕ ЧТОБЫ ПОЛУЧИТЬ ВЕСЬ СПИСОК")
-print("═══════════════════════════════════════════════════════════════")
-print("")
+print([[
+══════════════════════════════════════════════════════
+🔥 RYZEN SNIFFER v8 ЗАПУЩЕН
+══════════════════════════════════════════════════════
+✅ ПЕРЕХВАТ АКТИВИРОВАН
+✅ ТЕПЕРЬ ИГРАЙ И СМОТРИ УВЕДОМЛЕНИЯ
+✅ КАЖДОЕ НОВОЕ СОБЫТИЕ ПОКАЖЕТСЯ НА ЭКРАНЕ
+✅ ЧЕРЕЗ 1 МИНУТУ ПОКАЖЕТ ВСЕ НАЙДЕННЫЕ
+══════════════════════════════════════════════════════
+]])
