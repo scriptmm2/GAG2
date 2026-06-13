@@ -1,133 +1,582 @@
--- RYZEN SNIFFER v8 | ДЛЯ ТЕЛЕФОНА | ПОКАЗЫВАЕТ В УВЕДОМЛЕНИЯХ
+--[ RYZEN // PET SPAWNER & FARM ]--
+--[ FULL GUI | MOBILE SUPPORT | AUTO PET LIST ]--
 
-local RS = game:GetService("ReplicatedStorage")
+-- Проверка на наличие библиотеки RyzenLib (для кастомного GUI)
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
 local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+local RS = game:GetService("ReplicatedStorage")
+local ReplicaController = RS:FindFirstChild("ReplicaController") or RS
 
-local foundEvents = {}
-local lastNotify = 0
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = PlayerGui
+ScreenGui.Name = "RyzenHub"
+ScreenGui.ResetOnSpawn = false
 
--- УВЕДОМЛЕНИЕ
-local function notify(msg)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 450, 0, 600)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -300)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 50)
+TitleBar.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+TitleBar.BackgroundTransparency = 0.2
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = TitleBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -50, 1, 0)
+TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🌟 RYZEN SPAWNER // PETS & FARM"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 18
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 35, 0, 35)
+CloseButton.Position = UDim2.new(1, -45, 0, 7)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Text = "✕"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 20
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = TitleBar
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    Library:Destroy()
+end)
+
+local TabContainer = Instance.new("Frame")
+TabContainer.Size = UDim2.new(1, 0, 0, 40)
+TabContainer.Position = UDim2.new(0, 0, 0, 50)
+TabContainer.BackgroundTransparency = 1
+TabContainer.Parent = MainFrame
+
+local ContentContainer = Instance.new("ScrollingFrame")
+ContentContainer.Size = UDim2.new(1, -20, 1, -110)
+ContentContainer.Position = UDim2.new(0, 10, 0, 95)
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+ContentContainer.ScrollBarThickness = 4
+ContentContainer.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = ContentContainer
+
+local Tabs = {
+    {Name = "🐾 Pet Spawner", Index = 1},
+    {Name = "🤖 Auto Farm", Index = 2},
+    {Name = "🛡️ Player", Index = 3}
+}
+
+local TabButtons = {}
+local CurrentTab = 1
+
+-- Функция очистки контента
+local function ClearContent()
+    for _, child in pairs(ContentContainer:GetChildren()) do
+        if child ~= UIListLayout then
+            child:Destroy()
+        end
+    end
+end
+
+-- Функция уведомлений
+local function Notify(Title, Text, Duration)
     pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "🔍 RYZEN",
-            Text = msg,
-            Duration = 4
+        Library:Notify({
+            Title = Title,
+            Content = Text,
+            Duration = Duration
         })
     end)
-    print(msg)
 end
 
--- ПЕРЕХВАТ ВСЕХ ВЫЗОВОВ
-local function hookEvents()
-    for _, event in pairs(RS:GetDescendants()) do
-        if event:IsA("RemoteEvent") and not event._hooked then
-            event._hooked = true
-            local oldFire = event.FireServer
-            local eventName = event:GetFullName()
-            
-            event.FireServer = function(self, ...)
-                if not foundEvents[eventName] then
-                    foundEvents[eventName] = true
-                    
-                    -- ПОЛУЧАЕМ АРГУМЕНТЫ
-                    local args = {...}
-                    local argStr = ""
-                    for i = 1, math.min(2, #args) do
-                        local arg = args[i]
-                        if type(arg) == "Instance" then
-                            argStr = argStr .. "[" .. arg.ClassName .. ":" .. (arg.Name or "?") .. "] "
-                        elseif type(arg) == "string" then
-                            argStr = argStr .. '"' .. arg .. '" '
-                        elseif type(arg) == "number" then
-                            argStr = argStr .. arg .. " "
-                        end
-                    end
-                    
-                    -- ПОКАЗЫВАЕМ В УВЕДОМЛЕНИИ
-                    local total = 0
-                    for _ in pairs(foundEvents) do total = total + 1 end
-                    
-                    notify("🔹 " .. eventName)
-                    if argStr ~= "" then
-                        notify("   → " .. argStr)
-                    end
-                    notify("📌 НАЙДЕНО: " .. total .. " шт.")
-                end
-                
-                return oldFire(self, ...)
+-- Создание кнопок вкладок
+local TabWidth = 450 / #Tabs
+for i, tab in ipairs(Tabs) do
+    local TabButton = Instance.new("TextButton")
+    TabButton.Size = UDim2.new(0, TabWidth - 4, 1, -4)
+    TabButton.Position = UDim2.new(0, (i-1) * TabWidth + 2, 0, 2)
+    TabButton.BackgroundColor3 = (i == 1) and Color3.fromRGB(50, 200, 100) or Color3.fromRGB(40, 45, 60)
+    TabButton.Text = tab.Name
+    TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TabButton.TextSize = 14
+    TabButton.Font = Enum.Font.GothamBold
+    TabButton.Parent = TabContainer
+    
+    local TabCorner = Instance.new("UICorner")
+    TabCorner.CornerRadius = UDim.new(0, 8)
+    TabCorner.Parent = TabButton
+    
+    TabButton.MouseButton1Click:Connect(function()
+        CurrentTab = tab.Index
+        for j, btn in pairs(TabButtons) do
+            btn.BackgroundColor3 = (j == tab.Index) and Color3.fromRGB(50, 200, 100) or Color3.fromRGB(40, 45, 60)
+        end
+        if tab.Index == 1 then LoadPetSpawner()
+        elseif tab.Index == 2 then LoadAutoFarm()
+        elseif tab.Index == 3 then LoadPlayerMods()
+        end
+    end)
+    
+    TabButtons[tab.Index] = TabButton
+end
+
+-- Функция спавна питомца
+local function SpawnPet(PetName)
+    pcall(function()
+        local ReplicaController = RS:FindFirstChild("ReplicaController")
+        if ReplicaController then
+            ReplicaController:FireServer("SpawnPet", PetName)
+        else
+            local Remote = RS:FindFirstChild("ReplicaSignal")
+            if Remote then
+                Remote:FireServer("SpawnPet", PetName)
+            else
+                warn("[RYZEN] Remote not found for pet spawn!")
             end
         end
-    end
+    end)
 end
 
--- ПЕРЕХВАТ RemoteFunction
-local function hookFunctions()
-    for _, event in pairs(RS:GetDescendants()) do
-        if event:IsA("RemoteFunction") and not event._hooked then
-            event._hooked = true
-            local oldInvoke = event.InvokeServer
-            local eventName = event:GetFullName()
-            
-            event.InvokeServer = function(self, ...)
-                if not foundEvents[eventName] then
-                    foundEvents[eventName] = true
-                    local total = 0
-                    for _ in pairs(foundEvents) do total = total + 1 end
-                    notify("⚡ " .. eventName)
-                    notify("📌 НАЙДЕНО: " .. total .. " шт.")
-                end
-                return oldInvoke(self, ...)
-            end
+-- Обработка кликов для мобильных устройств
+local function MakeDraggable(frame)
+    local dragging = false
+    local dragStart, startPos
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
         end
-    end
+    end)
+    frame.InputEnded:Connect(function()
+        dragging = false
+    end)
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
 end
 
-hookEvents()
-hookFunctions()
+MakeDraggable(TitleBar)
 
--- ОБНОВЛЯЕМ ПЕРЕХВАТ КОГДА ДОБАВЛЯЮТСЯ НОВЫЕ СОБЫТИЯ
-RS.ChildAdded:Connect(function()
-    wait(0.5)
-    hookEvents()
-    hookFunctions()
-end)
-
-notify("✅ RYZEN SNIFFER ЗАПУЩЕН!")
-notify("👉 ТЕПЕРЬ ДЕЛАЙ ДЕЙСТВИЯ В ИГРЕ")
-notify("🌽 СОБИРАЙ УРОЖАЙ | 💰 ПРОДАВАЙ | 🌱 САЖАЙ")
-
--- ПОКАЗЫВАЕМ ВСЕ НАЙДЕННЫЕ СОБЫТИЯ ЧЕРЕЗ 1 МИНУТУ
-spawn(function()
-    wait(60)
-    local list = ""
-    for name in pairs(foundEvents) do
-        list = list .. name .. "\n"
+-- ████████████████████████████████████████████████████████████████████████████████
+-- ██ 1. PET SPAWNER TAB
+-- ████████████████████████████████████████████████████████████████████████████████
+local function LoadPetSpawner()
+    ClearContent()
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 40)
+    Title.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+    Title.BackgroundTransparency = 0.3
+    Title.Text = "  🐾 SPAWN ANY PET 🐾"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 16
+    Title.Font = Enum.Font.GothamBold
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Parent = ContentContainer
+    Title.LayoutOrder = 1
+    
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 8)
+    TitleCorner.Parent = Title
+    
+    -- Список питомцев из базы данных игры
+    local Pets = {
+        "Frog", "Bunny", "Owl", "BigOwl", "Deer", "Robin", "Bee", 
+        "Monkey", "GoldenDragonfly", "Unicorn", "Raccoon", "BlackDragon", 
+        "IceSerpent", "Crow", "Goat", "Goblin", "DarkSpriggan", "HexSerpent"
+    }
+    
+    -- Создание сетки 2x2
+    local GridLayout = Instance.new("UIGridLayout")
+    GridLayout.Parent = ContentContainer
+    GridLayout.CellSize = UDim2.new(0, 130, 0, 50)
+    GridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+    
+    local LayoutOrder = 2
+    
+    for _, PetName in pairs(Pets) do
+        local PetButton = Instance.new("TextButton")
+        PetButton.Size = UDim2.new(0, 130, 0, 50)
+        PetButton.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
+        PetButton.Text = PetName
+        PetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        PetButton.TextSize = 14
+        PetButton.Font = Enum.Font.GothamBold
+        PetButton.Parent = ContentContainer
+        PetButton.LayoutOrder = LayoutOrder
+        LayoutOrder = LayoutOrder + 1
+        
+        local BtnCorner = Instance.new("UICorner")
+        BtnCorner.CornerRadius = UDim.new(0, 8)
+        BtnCorner.Parent = PetButton
+        
+        PetButton.MouseButton1Click:Connect(function()
+            SpawnPet(PetName)
+            Notify("RYZEN", "✨ Spawning " .. PetName .. "...", 2)
+        end)
     end
     
-    if list ~= "" then
-        notify("📋 СПИСОК НАЙДЕННЫХ СОБЫТИЙ (" .. #list .. " символов)")
-        notify("👉 ПЕРЕПИШИ ИХ ВРУЧНУЮ И ОТПРАВЬ МНЕ")
-        
-        -- ПОКАЗЫВАЕМ ПО 1 СОБЫТИЮ
-        for name in pairs(foundEvents) do
-            wait(2)
-            notify(name)
+    -- Авто-обновление CanvasSize
+    wait(0.1)
+    local totalHeight = 0
+    for _, child in pairs(ContentContainer:GetChildren()) do
+        if child:IsA("TextButton") or child:IsA("TextLabel") then
+            totalHeight = totalHeight + child.Size.Y.Offset + 10
         end
-    else
-        notify("⚠️ НИЧЕГО НЕ ОБНАРУЖЕНО")
-        notify("👉 СДЕЛАЙ ХОТЯ БЫ 1 ДЕЙСТВИЕ В ИГРЕ")
+    end
+    ContentContainer.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 100)
+end
+
+-- ████████████████████████████████████████████████████████████████████████████████
+-- ██ 2. AUTO FARM TAB
+-- ████████████████████████████████████████████████████████████████████████████████
+local AutoFarmEnabled = false
+local AutoSellEnabled = false
+
+local function StartAutoFarm()
+    spawn(function()
+        while AutoFarmEnabled do
+            wait(0.3)
+            local Plots = workspace:FindFirstChild("Plots")
+            if Plots then
+                for _, Plot in pairs(Plots:GetChildren()) do
+                    pcall(function()
+                        if Plot:GetAttribute("IsReady") then
+                            local HarvestRemote = RS:FindFirstChild("HarvestPlant") or RS:FindFirstChild("ReplicaSignal")
+                            if HarvestRemote then
+                                HarvestRemote:FireServer(Plot)
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+local function StartAutoSell()
+    spawn(function()
+        while AutoSellEnabled do
+            wait(0.5)
+            for _, Tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+                pcall(function()
+                    local SellRemote = RS:FindFirstChild("SellItem") or RS:FindFirstChild("ReplicaSignal")
+                    if SellRemote then
+                        SellRemote:FireServer(Tool)
+                    end
+                end)
+                wait(0.1)
+            end
+        end
+    end)
+end
+
+local function LoadAutoFarm()
+    ClearContent()
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 40)
+    Title.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+    Title.BackgroundTransparency = 0.3
+    Title.Text = "  🤖 AUTO FARM CONFIG 🤖"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 16
+    Title.Font = Enum.Font.GothamBold
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Parent = ContentContainer
+    Title.LayoutOrder = 1
+    
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 8)
+    TitleCorner.Parent = Title
+    
+    local FarmToggleFrame = Instance.new("Frame")
+    FarmToggleFrame.Size = UDim2.new(1, 0, 0, 50)
+    FarmToggleFrame.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+    FarmToggleFrame.Parent = ContentContainer
+    FarmToggleFrame.LayoutOrder = 2
+    
+    local FarmToggleCorner = Instance.new("UICorner")
+    FarmToggleCorner.CornerRadius = UDim.new(0, 8)
+    FarmToggleCorner.Parent = FarmToggleFrame
+    
+    local FarmLabel = Instance.new("TextLabel")
+    FarmLabel.Size = UDim2.new(0.6, 0, 1, 0)
+    FarmLabel.Position = UDim2.new(0, 10, 0, 0)
+    FarmLabel.BackgroundTransparency = 1
+    FarmLabel.Text = "🌾 Auto Harvest"
+    FarmLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    FarmLabel.TextSize = 16
+    FarmLabel.Font = Enum.Font.GothamBold
+    FarmLabel.TextXAlignment = Enum.TextXAlignment.Left
+    FarmLabel.Parent = FarmToggleFrame
+    
+    local FarmToggle = Instance.new("TextButton")
+    FarmToggle.Size = UDim2.new(0, 80, 0, 35)
+    FarmToggle.Position = UDim2.new(1, -90, 0, 7)
+    FarmToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    FarmToggle.Text = "OFF"
+    FarmToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    FarmToggle.TextSize = 14
+    FarmToggle.Font = Enum.Font.GothamBold
+    FarmToggle.Parent = FarmToggleFrame
+    
+    local FarmCorner = Instance.new("UICorner")
+    FarmCorner.CornerRadius = UDim.new(0, 6)
+    FarmCorner.Parent = FarmToggle
+    
+    FarmToggle.MouseButton1Click:Connect(function()
+        AutoFarmEnabled = not AutoFarmEnabled
+        FarmToggle.Text = AutoFarmEnabled and "ON" or "OFF"
+        FarmToggle.BackgroundColor3 = AutoFarmEnabled and Color3.fromRGB(50, 200, 100) or Color3.fromRGB(80, 80, 100)
+        if AutoFarmEnabled then StartAutoFarm() end
+        Notify("RYZEN", "Auto Farm: " .. (AutoFarmEnabled and "ON" or "OFF"), 2)
+    end)
+    
+    local SellToggleFrame = Instance.new("Frame")
+    SellToggleFrame.Size = UDim2.new(1, 0, 0, 50)
+    SellToggleFrame.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+    SellToggleFrame.Parent = ContentContainer
+    SellToggleFrame.LayoutOrder = 3
+    
+    local SellToggleCorner = Instance.new("UICorner")
+    SellToggleCorner.CornerRadius = UDim.new(0, 8)
+    SellToggleCorner.Parent = SellToggleFrame
+    
+    local SellLabel = Instance.new("TextLabel")
+    SellLabel.Size = UDim2.new(0.6, 0, 1, 0)
+    SellLabel.Position = UDim2.new(0, 10, 0, 0)
+    SellLabel.BackgroundTransparency = 1
+    SellLabel.Text = "💰 Auto Sell (Inventory)"
+    SellLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SellLabel.TextSize = 16
+    SellLabel.Font = Enum.Font.GothamBold
+    SellLabel.TextXAlignment = Enum.TextXAlignment.Left
+    SellLabel.Parent = SellToggleFrame
+    
+    local SellToggle = Instance.new("TextButton")
+    SellToggle.Size = UDim2.new(0, 80, 0, 35)
+    SellToggle.Position = UDim2.new(1, -90, 0, 7)
+    SellToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    SellToggle.Text = "OFF"
+    SellToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SellToggle.TextSize = 14
+    SellToggle.Font = Enum.Font.GothamBold
+    SellToggle.Parent = SellToggleFrame
+    
+    local SellCorner = Instance.new("UICorner")
+    SellCorner.CornerRadius = UDim.new(0, 6)
+    SellCorner.Parent = SellToggle
+    
+    SellToggle.MouseButton1Click:Connect(function()
+        AutoSellEnabled = not AutoSellEnabled
+        SellToggle.Text = AutoSellEnabled and "ON" or "OFF"
+        SellToggle.BackgroundColor3 = AutoSellEnabled and Color3.fromRGB(50, 200, 100) or Color3.fromRGB(80, 80, 100)
+        if AutoSellEnabled then StartAutoSell() end
+        Notify("RYZEN", "Auto Sell: " .. (AutoSellEnabled and "ON" or "OFF"), 2)
+    end)
+    
+    ContentContainer.CanvasSize = UDim2.new(0, 0, 0, 200)
+end
+
+-- ████████████████████████████████████████████████████████████████████████████████
+-- ██ 3. PLAYER MODS TAB
+-- ████████████████████████████████████████████████████████████████████████████████
+local SpeedEnabled = false
+local JumpEnabled = false
+local SpeedValue = 50
+local JumpValue = 120
+
+local function ApplySpeed()
+    local Char = LocalPlayer.Character
+    local Hum = Char and Char:FindFirstChild("Humanoid")
+    if Hum and SpeedEnabled then
+        Hum.WalkSpeed = SpeedValue
+    end
+end
+
+local function ApplyJump()
+    local Char = LocalPlayer.Character
+    local Hum = Char and Char:FindFirstChild("Humanoid")
+    if Hum and JumpEnabled then
+        Hum.JumpPower = JumpValue
+    end
+end
+
+spawn(function()
+    while wait(0.3) do
+        if SpeedEnabled then ApplySpeed() end
+        if JumpEnabled then ApplyJump() end
     end
 end)
 
-print([[
-══════════════════════════════════════════════════════
-🔥 RYZEN SNIFFER v8 ЗАПУЩЕН
-══════════════════════════════════════════════════════
-✅ ПЕРЕХВАТ АКТИВИРОВАН
-✅ ТЕПЕРЬ ИГРАЙ И СМОТРИ УВЕДОМЛЕНИЯ
-✅ КАЖДОЕ НОВОЕ СОБЫТИЕ ПОКАЖЕТСЯ НА ЭКРАНЕ
-✅ ЧЕРЕЗ 1 МИНУТУ ПОКАЖЕТ ВСЕ НАЙДЕННЫЕ
-══════════════════════════════════════════════════════
-]])
+local function LoadPlayerMods()
+    ClearContent()
+    
+    local SpeedFrame = Instance.new("Frame")
+    SpeedFrame.Size = UDim2.new(1, 0, 0, 100)
+    SpeedFrame.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+    SpeedFrame.Parent = ContentContainer
+    SpeedFrame.LayoutOrder = 1
+    
+    local SpeedCorner = Instance.new("UICorner")
+    SpeedCorner.CornerRadius = UDim.new(0, 8)
+    SpeedCorner.Parent = SpeedFrame
+    
+    local SpeedLabel = Instance.new("TextLabel")
+    SpeedLabel.Size = UDim2.new(1, -10, 0, 30)
+    SpeedLabel.Position = UDim2.new(0, 5, 0, 5)
+    SpeedLabel.BackgroundTransparency = 1
+    SpeedLabel.Text = "🏃 Movement Speed: " .. SpeedValue
+    SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SpeedLabel.TextSize = 14
+    SpeedLabel.Font = Enum.Font.GothamBold
+    SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+    SpeedLabel.Parent = SpeedFrame
+    
+    local SpeedSlider = Instance.new("TextBox")
+    SpeedSlider.Size = UDim2.new(0.8, 0, 0, 35)
+    SpeedSlider.Position = UDim2.new(0.1, 0, 0, 40)
+    SpeedSlider.BackgroundColor3 = Color3.fromRGB(60, 65, 85)
+    SpeedSlider.Text = tostring(SpeedValue)
+    SpeedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SpeedSlider.Parent = SpeedFrame
+    
+    local SpeedCornerBox = Instance.new("UICorner")
+    SpeedCornerBox.CornerRadius = UDim.new(0, 6)
+    SpeedCornerBox.Parent = SpeedSlider
+    
+    SpeedSlider.FocusLost:Connect(function()
+        local Val = tonumber(SpeedSlider.Text)
+        if Val then
+            SpeedValue = math.clamp(Val, 16, 300)
+            SpeedLabel.Text = "🏃 Movement Speed: " .. SpeedValue
+            SpeedSlider.Text = tostring(SpeedValue)
+            Notify("RYZEN", "Speed set to " .. SpeedValue, 1)
+        else
+            SpeedSlider.Text = tostring(SpeedValue)
+        end
+        if SpeedEnabled then ApplySpeed() end
+    end)
+    
+    local SpeedToggle = Instance.new("TextButton")
+    SpeedToggle.Size = UDim2.new(0, 80, 0, 35)
+    SpeedToggle.Position = UDim2.new(1, -90, 0, 55)
+    SpeedToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    SpeedToggle.Text = "OFF"
+    SpeedToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SpeedToggle.TextSize = 14
+    SpeedToggle.Font = Enum.Font.GothamBold
+    SpeedToggle.Parent = SpeedFrame
+    
+    local SpeedToggleCorner = Instance.new("UICorner")
+    SpeedToggleCorner.CornerRadius = UDim.new(0, 6)
+    SpeedToggleCorner.Parent = SpeedToggle
+    
+    SpeedToggle.MouseButton1Click:Connect(function()
+        SpeedEnabled = not SpeedEnabled
+        SpeedToggle.Text = SpeedEnabled and "ON" or "OFF"
+        SpeedToggle.BackgroundColor3 = SpeedEnabled and Color3.fromRGB(50, 200, 100) or Color3.fromRGB(80, 80, 100)
+        Notify("RYZEN", "Speed Hack: " .. (SpeedEnabled and "ON" or "OFF"), 2)
+    end)
+    
+    -- Jump Frame
+    local JumpFrame = Instance.new("Frame")
+    JumpFrame.Size = UDim2.new(1, 0, 0, 100)
+    JumpFrame.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+    JumpFrame.Parent = ContentContainer
+    JumpFrame.LayoutOrder = 2
+    
+    local JumpCorner = Instance.new("UICorner")
+    JumpCorner.CornerRadius = UDim.new(0, 8)
+    JumpCorner.Parent = JumpFrame
+    
+    local JumpLabel = Instance.new("TextLabel")
+    JumpLabel.Size = UDim2.new(1, -10, 0, 30)
+    JumpLabel.Position = UDim2.new(0, 5, 0, 5)
+    JumpLabel.BackgroundTransparency = 1
+    JumpLabel.Text = "🦘 Jump Power: " .. JumpValue
+    JumpLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    JumpLabel.TextSize = 14
+    JumpLabel.Font = Enum.Font.GothamBold
+    JumpLabel.TextXAlignment = Enum.TextXAlignment.Left
+    JumpLabel.Parent = JumpFrame
+    
+    local JumpSlider = Instance.new("TextBox")
+    JumpSlider.Size = UDim2.new(0.8, 0, 0, 35)
+    JumpSlider.Position = UDim2.new(0.1, 0, 0, 40)
+    JumpSlider.BackgroundColor3 = Color3.fromRGB(60, 65, 85)
+    JumpSlider.Text = tostring(JumpValue)
+    JumpSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+    JumpSlider.Parent = JumpFrame
+    
+    local JumpCornerBox = Instance.new("UICorner")
+    JumpCornerBox.CornerRadius = UDim.new(0, 6)
+    JumpCornerBox.Parent = JumpSlider
+    
+    JumpSlider.FocusLost:Connect(function()
+        local Val = tonumber(JumpSlider.Text)
+        if Val then
+            JumpValue = math.clamp(Val, 50, 300)
+            JumpLabel.Text = "🦘 Jump Power: " .. JumpValue
+            JumpSlider.Text = tostring(JumpValue)
+            Notify("RYZEN", "Jump set to " .. JumpValue, 1)
+        else
+            JumpSlider.Text = tostring(JumpValue)
+        end
+        if JumpEnabled then ApplyJump() end
+    end)
+    
+    local JumpToggle = Instance.new("TextButton")
+    JumpToggle.Size = UDim2.new(0, 80, 0, 35)
+    JumpToggle.Position = UDim2.new(1, -90, 0, 55)
+    JumpToggle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    JumpToggle.Text = "OFF"
+    JumpToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    JumpToggle.TextSize = 14
+    JumpToggle.Font = Enum.Font.GothamBold
+    JumpToggle.Parent = JumpFrame
+    
+    local JumpToggleCorner = Instance.new("UICorner")
+    JumpToggleCorner.CornerRadius = UDim.new(0, 6)
+    JumpToggleCorner.Parent = JumpToggle
+    
+    JumpToggle.MouseButton1Click:Connect(function()
+        JumpEnabled = not JumpEnabled
+        JumpToggle.Text = JumpEnabled and "ON" or "OFF"
+        JumpToggle.BackgroundColor3 = JumpEnabled and Color3.fromRGB(50, 200, 100) or Color3.fromRGB(80, 80, 100)
+        Notify("RYZEN", "Jump Hack: " .. (JumpEnabled and "ON" or "OFF"), 2)
+    end)
+    
+    ContentContainer.CanvasSize = UDim2.new(0, 0, 0, 250)
+end
+
+-- Загрузка стандартной вкладки
+LoadPetSpawner()
+
+Notify("RYZEN", "✨ Ultimate Hub Loaded! ✨", 3)
