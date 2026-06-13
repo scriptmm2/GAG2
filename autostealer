@@ -1,213 +1,192 @@
--- ⚡ СУПЕР СНИФФЕР ДЛЯ GROW A GARDEN 2 (100% НАЙДЕТ ВСЕ)
--- ЭТОТ СНИФФЕР ПЕРЕХВАТЫВАЕТ ВСЕ ВЫЗОВЫ RemoteEvent
+--██████████████████████████████████████████████████████████
+--██     RYZEN SNIFFER v6 | АВТО-КОПИРОВАНИЕ             ██
+--██     ПРОСТО ЗАПУСТИ И ДЕЛАЙ ДЕЙСТВИЯ В ИГРЕ          ██
+--██████████████████████████████████████████████████████████
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local LP = Players.LocalPlayer
 
 local foundEvents = {}
-local eventList = {}
+local capturedEvents = {}
 
-print("═══════════════════════════════════════════════════")
-print("🔥 RYZEN ULTRA SNIFFER v3 - ПЕРЕХВАТ ВСЕХ СОБЫТИЙ")
-print("═══════════════════════════════════════════════════")
+-- УВЕДОМЛЕНИЕ
+local function notify(msg)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "🔍 RYZEN",
+            Text = msg,
+            Duration = 3
+        })
+    end)
+    print(msg)
+end
 
--- 1. ПЕРЕХВАТЫВАЕМ ВСЕ RemoteEvent В ReplicatedStorage
-local function scanAll(obj, path)
-    path = path or ""
-    for _, child in pairs(obj:GetChildren()) do
-        local currentPath = path ~= "" and path .. "." .. child.Name or child.Name
-        
-        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-            if not foundEvents[currentPath] then
-                foundEvents[currentPath] = true
-                table.insert(eventList, currentPath)
-                print("🎯 [EVENT] " .. currentPath)
-                
-                -- ПЕРЕХВАТ ДЛЯ RemoteEvent
-                if child:IsA("RemoteEvent") then
-                    local oldFire = child.FireServer
-                    child.FireServer = function(self, ...)
-                        print("📡 ВЫЗОВ: " .. currentPath .. " | АРГУМЕНТЫ:", ...)
-                        return oldFire(self, ...)
-                    end
+-- ФУНКЦИЯ КОПИРОВАНИЯ В БУФЕР
+local function copyToClipboard(text)
+    pcall(function()
+        if setclipboard then
+            setclipboard(text)
+            return true
+        elseif toclipboard then
+            toclipboard(text)
+            return true
+        end
+    end)
+    return false
+end
+
+-- СОБИРАЕМ ВСЕ СОБЫТИЯ ЗАРАНЕЕ
+local function scanAll()
+    local count = 0
+    local function scan(obj, path)
+        path = path or ""
+        for _, child in pairs(obj:GetChildren()) do
+            local fullPath = path ~= "" and path .. "/" .. child.Name or child.Name
+            if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                if not foundEvents[fullPath] then
+                    foundEvents[fullPath] = true
+                    count = count + 1
                 end
             end
-        end
-        
-        if child:IsA("Folder") or child:IsA("Model") then
-            scanAll(child, currentPath)
-        end
-    end
-end
-
-scanAll(RS)
-
--- 2. ПРОВЕРЯЕМ ТАКЖЕ ПРЯМО В ИГРОКЕ (могут быть события там)
-local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
-if playerScripts then
-    print("\n📁 СКАНИРУЮ PlayerScripts...")
-    scanAll(playerScripts)
-end
-
--- 3. СОЗДАЕМ СВОЙ GUI ДЛЯ ВВОДА КОМАНД
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RyzenUltraSniffer"
-pcall(function() 
-    screenGui.Parent = game.CoreGui 
-    if not screenGui.Parent then
-        screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-end)
-
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 350, 0, 450)
-mainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
-mainFrame.BackgroundTransparency = 0.1
-mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 45)
-title.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
-title.Text = "🔍 RYZEN ULTRA SNIFFER"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextScaled = true
-title.Font = Enum.Font.GothamBold
-title.Parent = mainFrame
-Instance.new("UICorner", title).CornerRadius = UDim.new(0, 12)
-
-local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1, -10, 1, -100)
-scroll.Position = UDim2.new(0, 5, 0, 50)
-scroll.BackgroundTransparency = 1
-scroll.Parent = mainFrame
-
-local layout = Instance.new("UIListLayout", scroll)
-layout.Padding = UDim.new(0, 5)
-
--- ВЫВОДИМ ВСЕ НАЙДЕННЫЕ СОБЫТИЯ В GUI
-local function addEventButton(eventName)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.95, 0, 0, 35)
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-    btn.Text = "📡 " .. eventName
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 12
-    btn.TextWrapped = true
-    btn.Parent = scroll
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    
-    btn.MouseButton1Click:Connect(function()
-        setclipboard(eventName)
-        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        btn.Text = "✅ " .. eventName .. " (СКОПИРОВАНО)"
-        wait(1)
-        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-        btn.Text = "📡 " .. eventName
-    end)
-end
-
-for _, eventName in pairs(eventList) do
-    addEventButton(eventName)
-end
-
--- КНОПКА ДЛЯ ТЕСТА ВЫЗОВА
-local testFrame = Instance.new("Frame")
-testFrame.Size = UDim2.new(1, -10, 0, 45)
-testFrame.Position = UDim2.new(0, 5, 0, 5)
-testFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-testFrame.Parent = scroll
-Instance.new("UICorner", testFrame).CornerRadius = UDim.new(0, 8)
-
-local testInput = Instance.new("TextBox")
-testInput.Size = UDim2.new(0.6, 0, 0, 35)
-testInput.Position = UDim2.new(0.05, 0, 0, 5)
-testInput.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-testInput.PlaceholderText = "Название события"
-testInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-testInput.Parent = testFrame
-Instance.new("UICorner", testInput).CornerRadius = UDim.new(0, 6)
-
-local testBtn = Instance.new("TextButton")
-testBtn.Size = UDim2.new(0.25, 0, 0, 35)
-testBtn.Position = UDim2.new(0.68, 0, 0, 5)
-testBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 0)
-testBtn.Text = "🔨 ТЕСТ"
-testBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-testBtn.Parent = testFrame
-Instance.new("UICorner", testBtn).CornerRadius = UDim.new(0, 6)
-
-testBtn.MouseButton1Click:Connect(function()
-    local eventName = testInput.Text
-    local event = RS:FindFirstChild(eventName)
-    if not event then
-        for _, part in pairs(string.split(eventName, ".")) do
-            if not event then event = RS:FindFirstChild(part)
-            else event = event:FindFirstChild(part) end
-        end
-    end
-    
-    if event then
-        print("🔨 ПЫТАЮСЬ ВЫЗВАТЬ: " .. eventName)
-        pcall(function()
-            if event:IsA("RemoteEvent") then
-                event:FireServer("test")
-                print("   ✅ FireServer выполнен")
-                event:FireServer(workspace)
-                event:FireServer(LocalPlayer.Character)
-            elseif event:IsA("RemoteFunction") then
-                local result = event:InvokeServer("test")
-                print("   ✅ InvokeServer результат:", result)
+            if child:IsA("Folder") or child:IsA("Model") then
+                scan(child, fullPath)
             end
-        end)
+        end
+    end
+    scan(RS)
+    return count
+end
+
+local totalEvents = scanAll()
+notify("📡 НАЙДЕНО " .. totalEvents .. " СОБЫТИЙ")
+wait(1)
+notify("🎯 ТЕПЕРЬ ДЕЛАЙ ДЕЙСТВИЯ В ИГРЕ")
+
+-- ПЕРЕХВАТ ВСЕХ ВЫЗОВОВ
+for _, event in pairs(RS:GetDescendants()) do
+    if event:IsA("RemoteEvent") then
+        local oldFire = event.FireServer
+        local eventPath = event:GetFullName()
+        
+        event.FireServer = function(self, ...)
+            if not capturedEvents[eventPath] then
+                capturedEvents[eventPath] = true
+                
+                -- ПОЛУЧАЕМ АРГУМЕНТЫ
+                local args = {...}
+                local argInfo = ""
+                for i, arg in pairs(args) do
+                    if i > 3 then break end
+                    if type(arg) == "Instance" then
+                        argInfo = argInfo .. "[" .. arg.ClassName .. ":" .. arg.Name .. "] "
+                    elseif type(arg) == "string" then
+                        argInfo = argInfo .. '"' .. arg .. '" '
+                    elseif type(arg) == "number" then
+                        argInfo = argInfo .. arg .. " "
+                    else
+                        argInfo = argInfo .. type(arg) .. " "
+                    end
+                end
+                
+                notify("🔥 " .. eventPath)
+                if argInfo ~= "" then
+                    print("   АРГУМЕНТЫ: " .. argInfo)
+                end
+                
+                -- АВТОМАТИЧЕСКИ КОПИРУЕМ КАЖДОЕ НОВОЕ СОБЫТИЕ
+                copyToClipboard(eventPath)
+                
+                -- ПОКАЗЫВАЕМ СТАТУС
+                local count = 0
+                for _ in pairs(capturedEvents) do count = count + 1 end
+                notify("📋 СКОПИРОВАНО " .. count .. "/?")
+            end
+            return oldFire(self, ...)
+        end
+    end
+end
+
+-- ТАКЖЕ СЛЕДИМ ЗА RemoteFunction
+for _, event in pairs(RS:GetDescendants()) do
+    if event:IsA("RemoteFunction") then
+        local oldInvoke = event.InvokeServer
+        local eventPath = event:GetFullName()
+        
+        event.InvokeServer = function(self, ...)
+            if not capturedEvents[eventPath] then
+                capturedEvents[eventPath] = true
+                notify("⚡ " .. eventPath)
+                copyToClipboard(eventPath)
+                local count = 0
+                for _ in pairs(capturedEvents) do count = count + 1 end
+                notify("📋 СКОПИРОВАНО " .. count)
+            end
+            return oldInvoke(self, ...)
+        end
+    end
+end
+
+-- ФИНАЛЬНОЕ УВЕДОМЛЕНИЕ ЧЕРЕЗ 30 СЕКУНД
+spawn(function()
+    wait(30)
+    local count = 0
+    local list = ""
+    for name in pairs(capturedEvents) do
+        count = count + 1
+        list = list .. name .. "\n"
+    end
+    
+    if count > 0 then
+        notify("✅ ЗА 30 СЕКУНД НАЙДЕНО " .. count .. " АКТИВНЫХ СОБЫТИЙ")
+        copyToClipboard(list)
+        notify("📋 ВЕСЬ СПИСОК В БУФЕРЕ! ВСТАВЬ СЮДА")
+        
+        -- ПОКАЗЫВАЕМ ПЕРВЫЕ 3 В УВЕДОМЛЕНИЯХ
+        local i = 0
+        for name in pairs(capturedEvents) do
+            if i < 3 then
+                notify(name)
+                i = i + 1
+                wait(1)
+            end
+        end
     else
-        print("❌ Событие не найдено: " .. eventName)
+        notify("⚠️ НИЧЕГО НЕ ОБНАРУЖЕНО. ДЕЛАЙ ДЕЙСТВИЯ В ИГРЕ!")
     end
 end)
 
--- ИНФО
-local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 25)
-infoLabel.Position = UDim2.new(0, 0, 0, -25)
-infoLabel.BackgroundTransparency = 1
-infoLabel.Text = "🎯 Найдено событий: " .. #eventList .. " | Нажми на событие чтобы скопировать"
-infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-infoLabel.TextSize = 11
-infoLabel.Parent = mainFrame
-
--- ЗАКРЫТИЕ
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 35, 0, 35)
-closeBtn.Position = UDim2.new(1, -42, 0, 5)
-closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-closeBtn.Text = "✕"
-closeBtn.TextScaled = true
-closeBtn.Parent = mainFrame
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
-closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
-
-print("═══════════════════════════════════════════════════")
-print("✅ НАЙДЕНО СОБЫТИЙ:", #eventList)
-print("📋 Нажми на событие в GUI чтобы скопировать его название")
-print("🔨 Введи название события и нажми ТЕСТ для проверки")
-print("═══════════════════════════════════════════════════")
-
--- ПЕРЕТАСКИВАНИЕ
-local drag = false
-local dragStart, startPos
-title.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        drag = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
+-- ТАЙМЕР КАЖДУЮ МИНУТУ
+spawn(function()
+    while true do
+        wait(60)
+        local count = 0
+        local list = ""
+        for name in pairs(capturedEvents) do
+            count = count + 1
+            list = list .. name .. "\n"
+        end
+        if count > 0 then
+            notify("📊 СОБРАНО СОБЫТИЙ: " .. count)
+            copyToClipboard(list)
+        end
     end
 end)
-title.InputEnded:Connect(function() drag = false end)
-game:GetService("UserInputService").InputChanged:Connect(function(input)
-    if drag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
+
+print[[
+╔══════════════════════════════════════════════════════════╗
+║     🔥 RYZEN SNIFFER v6 ЗАПУЩЕН                        ║
+╠══════════════════════════════════════════════════════════╣
+║     ТЕПЕРЬ ДЕЛАЙ ДЕЙСТВИЯ В ИГРЕ:                      ║
+║                                                         ║
+║     🌽 СОБИРАЙ УРОЖАЙ                                 ║
+║     🌱 САЖАЙ СЕМЕНА                                   ║
+║     💰 ПРОДАВАЙ ФРУКТЫ                                ║
+║     ✨ СОБИРАЙ АВРУ                                   ║
+║                                                         ║
+║     КАЖДОЕ НОВОЕ СОБЫТИЕ АВТОМАТИЧЕСКИ                ║
+║     КОПИРУЕТСЯ В БУФЕР!                               ║
+║                                                         ║
+║     ЧЕРЕЗ 30 СЕКУНД ГОТОВЫЙ СПИСОК БУДЕТ В БУФЕРЕ    ║
+╚══════════════════════════════════════════════════════════╝
+]]
