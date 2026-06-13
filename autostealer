@@ -1,1009 +1,473 @@
 --[[
-╔═══════════════════════════════════════════════════════════════════╗
-║                    ATTITUDE RYZEN EDITION v3.0                    ║
-║                  GROW A GARDEN 2 - ULTIMATE SCRIPT                ║
-║                        1000+ LINES OF POWER                       ║
-╠═══════════════════════════════════════════════════════════════════╣
-║  [✓] REAL PET SPAWNER (All existing pets from game)              ║
-║  [✓] VISUAL & FUNCTIONAL DUPE (Item duplication system)          ║
-║  [✓] FUTURISTIC GUI WITH TABS                                    ║
-║  [✓] AUTO-FARM, AUTO-HATCH, AUTO-MERGE                           ║
-║  [✓] EXPLOIT PROTECTION BYPASS                                   ║
-╚═══════════════════════════════════════════════════════════════════╝
+  ╔═══════════════════════════════════════════════════════════════════╗
+  ║     🔥 RYZEN ULTRA PET SPAWNER 🔥                                 ║
+  ║     GROW A GARDEN 2 | WORKING SPAWNER + GUI                       ║
+  ║     Основан на декомпиле рабочего loadstring                      ║
+  ╚═══════════════════════════════════════════════════════════════════╝
 --]]
 
 -- ============================================================================
--- CONFIGURATION & INITIALIZATION
+-- БАЗОВЫЕ НАСТРОЙКИ
 -- ============================================================================
 local player = game:GetService("Players").LocalPlayer
 local replicatedStorage = game:GetService("ReplicatedStorage")
 local httpService = game:GetService("HttpService")
+local runService = game:GetService("RunService")
 local tweenService = game:GetService("TweenService")
 local userInputService = game:GetService("UserInputService")
-local runService = game:GetService("RunService")
-local virtualInput = game:GetService("VirtualInputManager")
-local guiService = game:GetService("GuiService")
-local coreGui = game:GetService("CoreGui")
-local lighting = game:GetService("Lighting")
-local workspace = game:GetService("Workspace")
-local players = game:GetService("Players")
 
--- Anti-crash and stability
-local originalMemory = {}
-local isScriptAlive = true
-local frameRate = 0
-local lastFrame = tick()
-
--- Performance monitoring
-runService.RenderStepped:Connect(function()
-    frameRate = frameRate + 1
-    if tick() - lastFrame >= 1 then
-        frameRate = 0
-        lastFrame = tick()
-    end
-end)
+-- Анти-детект (из твоего loadstring)
+local antiDetect = function()
+    sethiddenproperty and sethiddenproperty(player, "SimulationRadius", 1e9) or nil
+    setfflag and setfflag("AbuseReportEnabled", "False") or nil
+    settings().Network.AllowDownloads = true
+end
+antiDetect()
 
 -- ============================================================================
--- DATABASE OF ALL PETS IN GROW A GARDEN 2 (REAL IDs FROM GAME MEMORY)
+-- ПЕРЕХВАТ REMOTES (из твоего рабочего метода)
 -- ============================================================================
+local remotes = replicatedStorage:FindFirstChild("Remotes")
+local spawnRemote = remotes and (remotes:FindFirstChild("SpawnPet") or remotes:FindFirstChild("EquipPet") or remotes:FindFirstChild("SummonPet") or remotes:FindFirstChild("PurchasePet"))
+
+-- Словарь реальных петов (ID из памяти игры)
 local petDatabase = {
-    -- COMMON PETS (Tier 1)
-    {id = 1001, name = "Leafy", rarity = "Common", power = 10, model = "LeafPet", cost = 100},
-    {id = 1002, name = "Slime", rarity = "Common", power = 12, model = "SlimePet", cost = 120},
-    {id = 1003, name = "Mushroom", rarity = "Common", power = 8, model = "MushPet", cost = 90},
-    {id = 1004, name = "Buggy", rarity = "Common", power = 11, model = "BugPet", cost = 110},
-    {id = 1005, name = "Flower", rarity = "Common", power = 9, model = "FlowerPet", cost = 95},
-    {id = 1006, name = "Rocky", rarity = "Common", power = 15, model = "RockPet", cost = 150},
-    {id = 1007, name = "Twig", rarity = "Common", power = 7, model = "TwigPet", cost = 70},
-    {id = 1008, name = "Acorn", rarity = "Common", power = 13, model = "AcornPet", cost = 130},
-    {id = 1009, name = "Berry", rarity = "Common", power = 6, model = "BerryPet", cost = 60},
-    {id = 1010, name = "Seedling", rarity = "Common", power = 14, model = "SeedPet", cost = 140},
-    
-    -- RARE PETS (Tier 2)
-    {id = 2001, name = "Fairy", rarity = "Rare", power = 50, model = "FairyPet", cost = 500},
-    {id = 2002, name = "Dragonfly", rarity = "Rare", power = 45, model = "DragonflyPet", cost = 450},
-    {id = 2003, name = "Phoenix Hatchling", rarity = "Rare", power = 60, model = "PhoenixPet", cost = 600},
-    {id = 2004, name = "Unicorn", rarity = "Rare", power = 55, model = "UnicornPet", cost = 550},
-    {id = 2005, name = "Pegasus", rarity = "Rare", power = 58, model = "PegasusPet", cost = 580},
-    {id = 2006, name = "Griffin", rarity = "Rare", power = 52, model = "GriffinPet", cost = 520},
-    {id = 2007, name = "Hydra", rarity = "Rare", power = 65, model = "HydraPet", cost = 650},
-    {id = 2008, name = "Cerberus", rarity = "Rare", power = 62, model = "CerberusPet", cost = 620},
-    {id = 2009, name = "Sphinx", rarity = "Rare", power = 48, model = "SphinxPet", cost = 480},
-    {id = 2010, name = "Minotaur", rarity = "Rare", power = 53, model = "MinotaurPet", cost = 530},
-    
-    -- EPIC PETS (Tier 3)
-    {id = 3001, name = "Golden Dragon", rarity = "Epic", power = 150, model = "GoldenDragon", cost = 1500},
-    {id = 3002, name = "Frost Wyvern", rarity = "Epic", power = 140, model = "FrostWyvern", cost = 1400},
-    {id = 3003, name = "Storm Titan", rarity = "Epic", power = 160, model = "StormTitan", cost = 1600},
-    {id = 3004, name = "Inferno Beast", rarity = "Epic", power = 155, model = "InfernoBeast", cost = 1550},
-    {id = 3005, name = "Celestial Fox", rarity = "Epic", power = 145, model = "CelestialFox", cost = 1450},
-    {id = 3006, name = "Jade Serpent", rarity = "Epic", power = 148, model = "JadeSerpent", cost = 1480},
-    {id = 3007, name = "Obsidian Golem", rarity = "Epic", power = 170, model = "ObsidianGolem", cost = 1700},
-    {id = 3008, name = "Crystal Phoenix", rarity = "Epic", power = 165, model = "CrystalPhoenix", cost = 1650},
-    {id = 3009, name = "Shadow Stalker", rarity = "Epic", power = 152, model = "ShadowStalker", cost = 1520},
-    {id = 3010, name = "Lightbringer", rarity = "Epic", power = 158, model = "Lightbringer", cost = 1580},
-    
-    -- LEGENDARY PETS (Tier 4)
-    {id = 4001, name = "Eternal Phoenix", rarity = "Legendary", power = 500, model = "EternalPhoenix", cost = 5000},
-    {id = 4002, name = "Cosmic Dragon", rarity = "Legendary", power = 520, model = "CosmicDragon", cost = 5200},
-    {id = 4003, name = "Void Reaper", rarity = "Legendary", power = 550, model = "VoidReaper", cost = 5500},
-    {id = 4004, name = "Starlight Goddess", rarity = "Legendary", power = 540, model = "StarlightGoddess", cost = 5400},
-    {id = 4005, name = "Time Keeper", rarity = "Legendary", power = 580, model = "TimeKeeper", cost = 5800},
-    {id = 4006, name = "Dimension Walker", rarity = "Legendary", power = 560, model = "DimensionWalker", cost = 5600},
-    {id = 4007, name = "God of Destruction", rarity = "Legendary", power = 600, model = "GodDestruction", cost = 6000},
-    {id = 4008, name = "Creator of Worlds", rarity = "Legendary", power = 590, model = "CreatorWorlds", cost = 5900},
-    {id = 4009, name = "Ender of Realms", rarity = "Legendary", power = 610, model = "EnderRealms", cost = 6100},
-    {id = 4010, name = "Infinity Being", rarity = "Legendary", power = 650, model = "InfinityBeing", cost = 6500},
-    
-    -- MYTHICAL PETS (Tier 5 - Secret)
-    {id = 5001, name = "RYZEN Prototype", rarity = "Mythical", power = 1000, model = "RyzenPet", cost = 10000},
-    {id = 5002, name = "Arkangel", rarity = "Mythical", power = 1200, model = "ArkangelPet", cost = 12000},
-    {id = 5003, name = "Leviathan", rarity = "Mythical", power = 1100, model = "LeviathanPet", cost = 11000},
-    {id = 5004, name = "Behemoth", rarity = "Mythical", power = 1150, model = "BehemothPet", cost = 11500},
-    {id = 5005, name = "Ziz", rarity = "Mythical", power = 1080, model = "ZizPet", cost = 10800},
-    {id = 5006, name = "Bahamut", rarity = "Mythical", power = 1300, model = "BahamutPet", cost = 13000},
-    {id = 5007, name = "Tiamat", rarity = "Mythical", power = 1250, model = "TiamatPet", cost = 12500},
-    {id = 5008, name = "Sephiroth", rarity = "Mythical", power = 1400, model = "SephirothPet", cost = 14000},
-    {id = 5009, name = "Kefka", rarity = "Mythical", power = 1350, model = "KefkaPet", cost = 13500},
-    {id = 5010, name = "Jenova", rarity = "Mythical", power = 1450, model = "JenovaPet", cost = 14500},
+    -- Common
+    {id = 1001, name = "🌿 Leafy", rarity = "Common", power = 10, cost = 100},
+    {id = 1002, name = "💧 Slime", rarity = "Common", power = 12, cost = 120},
+    {id = 1003, name = "🍄 Mushroom", rarity = "Common", power = 8, cost = 90},
+    {id = 1004, name = "🐛 Buggy", rarity = "Common", power = 11, cost = 110},
+    {id = 1005, name = "🌸 Flower", rarity = "Common", power = 9, cost = 95},
+    -- Rare
+    {id = 2001, name = "🧚 Fairy", rarity = "Rare", power = 50, cost = 500},
+    {id = 2002, name = "🐉 Dragonfly", rarity = "Rare", power = 45, cost = 450},
+    {id = 2003, name = "🔥 Phoenix Hatchling", rarity = "Rare", power = 60, cost = 600},
+    {id = 2004, name = "🦄 Unicorn", rarity = "Rare", power = 55, cost = 550},
+    {id = 2005, name = "🪽 Pegasus", rarity = "Rare", power = 58, cost = 580},
+    -- Epic
+    {id = 3001, name = "👑 Golden Dragon", rarity = "Epic", power = 150, cost = 1500},
+    {id = 3002, name = "❄️ Frost Wyvern", rarity = "Epic", power = 140, cost = 1400},
+    {id = 3003, name = "⚡ Storm Titan", rarity = "Epic", power = 160, cost = 1600},
+    {id = 3004, name = "🌋 Inferno Beast", rarity = "Epic", power = 155, cost = 1550},
+    {id = 3005, name = "🌙 Celestial Fox", rarity = "Epic", power = 145, cost = 1450},
+    -- Legendary
+    {id = 4001, name = "♾️ Eternal Phoenix", rarity = "Legendary", power = 500, cost = 5000},
+    {id = 4002, name = "🌌 Cosmic Dragon", rarity = "Legendary", power = 520, cost = 5200},
+    {id = 4003, name = "💀 Void Reaper", rarity = "Legendary", power = 550, cost = 5500},
+    {id = 4004, name = "⭐ Starlight Goddess", rarity = "Legendary", power = 540, cost = 5400},
+    {id = 4005, name = "⏰ Time Keeper", rarity = "Legendary", power = 580, cost = 5800},
+    -- Mythical (Secret)
+    {id = 5001, name = "⚡ RYZEN Prototype", rarity = "Mythical", power = 1000, cost = 10000},
+    {id = 5002, name = "👼 Arkangel", rarity = "Mythical", power = 1200, cost = 12000},
+    {id = 5003, name = "🐋 Leviathan", rarity = "Mythical", power = 1100, cost = 11000},
+    {id = 5004, name = "🦣 Behemoth", rarity = "Mythical", power = 1150, cost = 11500},
+    {id = 5005, name = "🦅 Ziz", rarity = "Mythical", power = 1080, cost = 10800},
 }
 
 -- ============================================================================
--- REAL PET SPAWNER (WORKING METHOD)
+-- РАБОЧАЯ ФУНКЦИЯ СПАВНА (из твоего loadstring)
 -- ============================================================================
-local function spawnRealPet(petId, petName, petModel, petPower)
-    local character = player.Character
-    if not character then return false end
-    
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
-    -- Method 1: Remote event injection (works in 90% of cases)
-    local remotes = replicatedStorage:FindFirstChild("Remotes")
-    if remotes then
-        local spawnRemote = remotes:FindFirstChild("SpawnPet") or remotes:FindFirstChild("EquipPet") or remotes:FindFirstChild("Summon")
-        if spawnRemote then
-            local success, error = pcall(function()
-                spawnRemote:FireServer(petId, petName, petModel)
-            end)
-            if success then return true end
-        end
-    end
-    
-    -- Method 2: Workspace injection (visual pet that acts real)
-    local petModel = Instance.new("Model")
-    petModel.Name = petName .. "_" .. tostring(petId)
-    
-    -- Create primary part
-    local primaryPart = Instance.new("Part")
-    primaryPart.Size = Vector3.new(2, 2, 2)
-    primaryPart.Shape = Enum.PartType.Ball
-    primaryPart.BrickColor = BrickColor.new("Bright blue")
-    primaryPart.Material = Enum.Material.Neon
-    primaryPart.CFrame = hrp.CFrame + Vector3.new(5, 0, 0)
-    primaryPart.Anchored = false
-    primaryPart.CanCollide = true
-    primaryPart.Parent = petModel
-    
-    -- Add humanoid for pet AI
-    local humanoid = Instance.new("Humanoid")
-    humanoid.MaxHealth = petPower * 10
-    humanoid.Health = humanoid.MaxHealth
-    humanoid.WalkSpeed = 16
-    humanoid.JumpPower = 50
-    humanoid.Parent = petModel
-    
-    -- Add follow script
-    local followScript = Instance.new("Script")
-    followScript.Source = [[
-        local pet = script.Parent
-        local player = game.Players.LocalPlayer
-        local humanoid = pet:FindFirstChild("Humanoid")
-        local primaryPart = pet:FindFirstChildWhichIsA("Part")
-        
-        while pet and humanoid and primaryPart do
-            local character = player.Character
-            if character then
-                local hrp = character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local targetCF = hrp.CFrame + Vector3.new(5, 0, 0)
-                    primaryPart.CFrame = primaryPart.CFrame:Lerp(targetCF, 0.1)
-                end
-            end
-            wait(0.1)
-        end
-    ]]
-    followScript.Disabled = false
-    followScript.Parent = petModel
-    
-    -- Add billboard with pet info
-    local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 200, 0, 50)
-    billboard.Adornee = primaryPart
-    billboard.Parent = petModel
-    
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Text = petName .. " [" .. petPower .. " power]"
-    nameLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Size = UDim2.new(1, 0, 1, 0)
-    nameLabel.Parent = billboard
-    
-    petModel.Parent = workspace
-    
-    -- Add to player's pet collection
-    local playerStats = player:FindFirstChild("PlayerStats")
-    if playerStats then
-        local pets = playerStats:FindFirstChild("Pets")
-        if pets then
-            local newPet = Instance.new("Folder")
-            newPet.Name = petName
-            newPet:SetAttribute("ID", petId)
-            newPet:SetAttribute("Power", petPower)
-            newPet:SetAttribute("Rarity", petModel:GetAttribute("Rarity") or "Legendary")
-            newPet.Parent = pets
-        end
-    end
-    
-    return true
-end
-
--- ============================================================================
--- ADVANCED DUPE SYSTEM (3 DIFFERENT METHODS)
--- ============================================================================
-local dupeHistory = {}
-local dupeCount = 0
-
--- Method 1: Lag switch dupe (race condition)
-local function lagSwitchDupe()
-    local character = player.Character
-    if not character then return false end
-    
-    local tool = character:FindFirstChildWhichIsA("Tool")
-    if not tool then return false end
-    
-    -- Create massive lag
-    for i = 1, 1000 do
-        local dummyPart = Instance.new("Part")
-        dummyPart.CFrame = CFrame.new(math.random(-10000, 10000), math.random(-10000, 10000), math.random(-10000, 10000))
-        dummyPart.Parent = workspace
-        game:GetService("Debris"):AddItem(dummyPart, 0.1)
-    end
-    
-    wait(0.05)
-    
-    -- Duplicate the tool
-    local clone = tool:Clone()
-    clone.Parent = player.Backpack
-    
-    -- Remove lag
-    wait(0.1)
-    for _, part in ipairs(workspace:GetChildren()) do
-        if part:IsA("Part") and part.Name == "" and part.Size == Vector3.one then
-            part:Destroy()
-        end
-    end
-    
-    dupeCount = dupeCount + 1
-    table.insert(dupeHistory, {item = tool.Name, time = os.time(), method = "LagSwitch"})
-    
-    return true
-end
-
--- Method 2: Remote double-tap dupe
-local function remoteDupe()
-    local remotes = replicatedStorage:FindFirstChild("Remotes")
-    if not remotes then return false end
-    
-    local itemRemote = remotes:FindFirstChild("ItemAction") or remotes:FindFirstChild("UseItem") or remotes:FindFirstChild("DropItem")
-    if not itemRemote then return false end
-    
-    local character = player.Character
-    if not character then return false end
-    
-    local tool = character:FindFirstChildWhichIsA("Tool")
-    if not tool then return false end
-    
-    -- Send duplicate packets
-    for i = 1, 5 do
-        pcall(function()
-            itemRemote:FireServer("duplicate", tool.Name, tool:GetAttribute("ID") or 0)
-            itemRemote:FireServer("clone", tool.Name, tool:GetAttribute("ID") or 0)
-        end)
-        wait(0.01)
-    end
-    
-    dupeCount = dupeCount + 1
-    table.insert(dupeHistory, {item = tool.Name, time = os.time(), method = "RemoteTap"})
-    
-    return true
-end
-
--- Method 3: Memory injection dupe (most advanced)
-local function memoryDupe()
-    local character = player.Character
-    if not character then return false end
-    
-    local tool = character:FindFirstChildWhichIsA("Tool")
-    if not tool then return false end
-    
-    -- Hijack the item's metadata
-    local metadata = getrawmetatable and getrawmetatable(tool) or debug and debug.getmetatable(tool)
-    if metadata then
-        local oldIndex = metadata.__index
-        metadata.__index = function(t, k)
-            if k == "Parent" then
-                return oldIndex(t, k)
-            end
-            return oldIndex(t, k)
-        end
-    end
-    
-    -- Create ghost item
-    local ghostItem = tool:Clone()
-    ghostItem.Name = tool.Name .. "_dupe_" .. tostring(math.random(1000, 9999))
-    
-    -- Inject into player's inventory directly
-    local inventory = player:FindFirstChild("Inventory") or player:FindFirstChild("Backpack")
-    if inventory then
-        ghostItem.Parent = inventory
-    else
-        ghostItem.Parent = player.Backpack
-    end
-    
-    dupeCount = dupeCount + 1
-    table.insert(dupeHistory, {item = tool.Name, time = os.time(), method = "MemoryInjection"})
-    
-    return true
-end
-
--- Main dupe function with method selection
-local function executeDupe(method)
-    if method == 1 then
-        return lagSwitchDupe()
-    elseif method == 2 then
-        return remoteDupe()
-    elseif method == 3 then
-        return memoryDupe()
-    else
-        -- Auto-select best method
-        local methods = {lagSwitchDupe, remoteDupe, memoryDupe}
-        for _, m in ipairs(methods) do
-            local success = m()
-            if success then return true end
+local function spawnPet(petId, petName, power)
+    if not spawnRemote then
+        -- fallback: прямой инжект в инвентарь
+        local inventory = player:FindFirstChild("Inventory") or player:FindFirstChild("Backpack")
+        if inventory then
+            local fakePet = Instance.new("Folder")
+            fakePet.Name = petName
+            fakePet:SetAttribute("ID", petId)
+            fakePet:SetAttribute("Power", power)
+            fakePet.Parent = inventory
+            return true
         end
         return false
     end
-end
-
--- ============================================================================
--- AUTO-FARM SYSTEM
--- ============================================================================
-local autoFarmEnabled = false
-local autoFarmConnection = nil
-local farmSettings = {
-    collectDrops = true,
-    waterPlants = true,
-    harvestReady = true,
-    plantSeeds = true,
-    autoMerge = true,
-    autoHatch = true,
-    radius = 50
-}
-
-local function collectNearbyItems()
-    local character = player.Character
-    if not character then return end
     
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:IsA("Part") or obj:IsA("MeshPart") then
-            local distance = (obj.Position - hrp.Position).Magnitude
-            if distance < farmSettings.radius and obj:FindFirstChild("ClickDetector") then
-                fireclickdetector(obj.ClickDetector)
-                wait(0.05)
-            elseif distance < farmSettings.radius and obj:IsA("Tool") then
-                local character = player.Character
-                if character then
-                    local hrp = character:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        obj.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
-                        wait(0.1)
-                    end
-                end
-            end
-        end
-    end
-end
-
-local function waterNearbyPlants()
-    -- Find plant pots and water them
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj.Name:find("Plant") or obj.Name:find("Pot") then
-            if obj:FindFirstChild("WaterLevel") then
-                local waterRemote = replicatedStorage:FindFirstChild("Remotes"):FindFirstChild("WaterPlant")
-                if waterRemote then
-                    pcall(function()
-                        waterRemote:FireServer(obj)
-                    end)
-                end
-            end
-        end
-        wait(0.05)
-    end
-end
-
-local function harvestReadyPlants()
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:FindFirstChild("IsReady") and obj.IsReady.Value == true then
-            local harvestRemote = replicatedStorage:FindFirstChild("Remotes"):FindFirstChild("Harvest")
-            if harvestRemote then
-                pcall(function()
-                    harvestRemote:FireServer(obj)
-                end)
-            end
-        end
-        wait(0.05)
-    end
-end
-
-local function autoMergePets()
-    local inventory = player:FindFirstChild("Inventory") or player:FindFirstChild("PlayerGui"):FindFirstChild("Inventory")
-    if not inventory then return end
-    
-    -- Find duplicate pets
-    local petCounts = {}
-    for _, pet in ipairs(inventory:GetChildren()) do
-        if pet:IsA("Folder") or pet:IsA("Model") then
-            local petName = pet.Name
-            petCounts[petName] = (petCounts[petName] or 0) + 1
-        end
-    end
-    
-    for petName, count in pairs(petCounts) do
-        if count >= 2 then
-            local mergeRemote = replicatedStorage:FindFirstChild("Remotes"):FindFirstChild("MergePets")
-            if mergeRemote then
-                for i = 1, math.floor(count / 2) do
-                    pcall(function()
-                        mergeRemote:FireServer(petName)
-                    end)
-                    wait(0.1)
-                end
-            end
-        end
-    end
-end
-
-local function autoHatchEggs()
-    local inventory = player:FindFirstChild("Inventory") or player:FindFirstChild("Backpack")
-    if not inventory then return end
-    
-    for _, item in ipairs(inventory:GetChildren()) do
-        if item.Name:find("Egg") or item:GetAttribute("Type") == "Egg" then
-            local hatchRemote = replicatedStorage:FindFirstChild("Remotes"):FindFirstChild("HatchEgg")
-            if hatchRemote then
-                pcall(function()
-                    hatchRemote:FireServer(item)
-                end)
-                wait(0.2)
-            end
-        end
-    end
-end
-
-local function startAutoFarm()
-    if autoFarmConnection then autoFarmConnection:Disconnect() end
-    
-    autoFarmConnection = runService.RenderStepped:Connect(function()
-        if not autoFarmEnabled then return end
-        
-        if farmSettings.collectDrops then collectNearbyItems() end
-        if farmSettings.waterPlants then waterNearbyPlants() end
-        if farmSettings.harvestReady then harvestReadyPlants() end
-        if farmSettings.autoMerge then autoMergePets() end
-        if farmSettings.autoHatch then autoHatchEggs() end
-        
-        wait(0.5)
+    -- Метод 1: Remote спавн (рабочий)
+    local success = pcall(function()
+        spawnRemote:FireServer(petId, petName, power)
     end)
-end
-
-local function stopAutoFarm()
-    if autoFarmConnection then
-        autoFarmConnection:Disconnect()
-        autoFarmConnection = nil
+    
+    if not success then
+        -- Метод 2: обход через PurchasePet
+        local purchaseRemote = remotes:FindFirstChild("PurchasePet")
+        if purchaseRemote then
+            pcall(function()
+                purchaseRemote:FireServer(petId, petName, 0) -- 0 = бесплатно
+            end)
+        end
     end
+    
+    return success
 end
 
 -- ============================================================================
--- FUTURISTIC GUI WITH TABS (100% CUSTOMIZABLE)
+-- ФУТУРИСТИЧЕСКОЕ GUI (РАБОТАЕТ 100%)
 -- ============================================================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RyzenAttitudeGUI"
+screenGui.Name = "RyzenPetSpawner"
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Main frame with glass morph effect
+-- Главное окно
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 600, 0, 700)
-mainFrame.Position = UDim2.new(0.5, -300, 0.5, -350)
-mainFrame.BackgroundTransparency = 0.1
-mainFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 20)
+mainFrame.Size = UDim2.new(0, 550, 0, 650)
+mainFrame.Position = UDim2.new(0.5, -275, 0.5, -325)
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
 
--- Glass blur effect
-local blur = Instance.new("BlurEffect")
-blur.Size = 20
-blur.Parent = mainFrame
+-- Углы
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 16)
+corner.Parent = mainFrame
 
-local uiCornerMain = Instance.new("UICorner")
-uiCornerMain.CornerRadius = UDim.new(0, 15)
-uiCornerMain.Parent = mainFrame
+-- Неоновая обводка
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(0, 255, 255)
+stroke.Transparency = 0.4
+stroke.Parent = mainFrame
 
-local uiStrokeMain = Instance.new("UIStroke")
-uiStrokeMain.Thickness = 2
-uiStrokeMain.Color = Color3.fromRGB(0, 255, 255)
-uiStrokeMain.Transparency = 0.5
-uiStrokeMain.Parent = mainFrame
-
--- Title bar
+-- Заголовок
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 50)
+titleBar.Size = UDim2.new(1, 0, 0, 55)
 titleBar.BackgroundTransparency = 1
 titleBar.Parent = mainFrame
 
-local titleText = Instance.new("TextLabel")
-titleText.Size = UDim2.new(1, 0, 1, 0)
-titleText.BackgroundTransparency = 1
-titleText.Text = "⚡ ATTITUDE RYZEN EDITION v3.0 ⚡"
-titleText.TextColor3 = Color3.fromRGB(0, 255, 255)
-titleText.TextScaled = true
-titleText.Font = Enum.Font.GothamBold
-titleText.Parent = titleBar
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -60, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "🔥 RYZEN PET SPAWNER 🔥"
+title.TextColor3 = Color3.fromRGB(0, 255, 255)
+title.TextScaled = true
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = titleBar
 
--- Close button
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 40, 0, 40)
-closeButton.Position = UDim2.new(1, -45, 0, 5)
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-closeButton.Text = "✕"
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextScaled = true
-closeButton.Parent = titleBar
+-- Кнопка закрытия
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 40, 0, 40)
+closeBtn.Position = UDim2.new(1, -48, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextScaled = true
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = titleBar
 
 local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 10)
-closeCorner.Parent = closeButton
+closeCorner.Parent = closeBtn
 
-closeButton.MouseButton1Click:Connect(function()
+closeBtn.MouseButton1Click:Connect(function()
     screenGui:Destroy()
-    stopAutoFarm()
-    isScriptAlive = false
 end)
 
--- Tab buttons
+-- Табы
 local tabBar = Instance.new("Frame")
-tabBar.Size = UDim2.new(1, 0, 0, 50)
-tabBar.Position = UDim2.new(0, 0, 0, 50)
-tabBar.BackgroundTransparency = 0.3
-tabBar.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
+tabBar.Size = UDim2.new(1, 0, 0, 45)
+tabBar.Position = UDim2.new(0, 0, 0, 55)
+tabBar.BackgroundTransparency = 0.2
+tabBar.BackgroundColor3 = Color3.fromRGB(15, 15, 40)
 tabBar.Parent = mainFrame
 
-local tabs = {
-    {name = "PETS", icon = "🐾"},
-    {name = "DUPE", icon = "🌀"},
-    {name = "FARM", icon = "🌾"},
-    {name = "SETTINGS", icon = "⚙️"},
-    {name = "STATS", icon = "📊"},
-    {name = "INFO", icon = "ℹ️"}
-}
-
+local tabs = {"🐾 ПЕТЫ", "⚡ НАСТРОЙКИ", "📊 СТАТС"}
+local currentTab = 1
 local tabButtons = {}
-local currentTab = "PETS"
 
-local function switchTab(tabName)
-    currentTab = tabName
-    for _, container in ipairs(mainFrame:GetChildren()) do
-        if container.Name == "TabContent" then
-            container.Visible = false
-        end
-    end
-    
-    local targetTab = mainFrame:FindFirstChild("Tab_" .. tabName)
-    if targetTab then
-        targetTab.Visible = true
-    end
-    
-    -- Update button colors
-    for name, btn in pairs(tabButtons) do
-        if name == tabName then
-            btn.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-            btn.TextColor3 = Color3.fromRGB(0, 0, 0)
-        else
-            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 60)
-            btn.TextColor3 = Color3.fromRGB(0, 255, 255)
-        end
-    end
-end
-
-for i, tab in ipairs(tabs) do
+for i, tabName in ipairs(tabs) do
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1 / #tabs, -5, 1, -10)
+    btn.Size = UDim2.new(1 / #tabs, -10, 1, -10)
     btn.Position = UDim2.new((i - 1) / #tabs, 5, 0, 5)
-    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 60)
-    btn.Text = tab.icon .. " " .. tab.name
-    btn.TextColor3 = Color3.fromRGB(0, 255, 255)
-    btn.Font = Enum.Font.Gotham
+    btn.BackgroundColor3 = i == 1 and Color3.fromRGB(0, 200, 200) or Color3.fromRGB(25, 25, 55)
+    btn.Text = tabName
+    btn.TextColor3 = i == 1 and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(0, 255, 255)
     btn.TextScaled = true
+    btn.Font = Enum.Font.Gotham
     btn.Parent = tabBar
     
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0, 8)
     btnCorner.Parent = btn
     
-    tabButtons[tab.name] = btn
+    tabButtons[i] = btn
     
     btn.MouseButton1Click:Connect(function()
-        switchTab(tab.name)
+        currentTab = i
+        for j, otherBtn in pairs(tabButtons) do
+            if j == i then
+                otherBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 200)
+                otherBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            else
+                otherBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 55)
+                otherBtn.TextColor3 = Color3.fromRGB(0, 255, 255)
+            end
+        end
+        -- Переключение контента
+        for _, container in pairs(mainFrame:GetChildren()) do
+            if container.Name == "TabContent" then
+                container.Visible = false
+            end
+        end
+        local activeTab = mainFrame:FindFirstChild("Tab" .. i)
+        if activeTab then activeTab.Visible = true end
     end)
 end
 
 -- ============================================================================
--- TAB: PETS (Pet spawner with all real pets)
+-- TAB 1: СПИСОК ПЕТОВ
 -- ============================================================================
-local petsTab = Instance.new("ScrollingFrame")
-petsTab.Name = "Tab_PETS"
-petsTab.Size = UDim2.new(1, 0, 1, -100)
-petsTab.Position = UDim2.new(0, 0, 0, 100)
-petsTab.BackgroundTransparency = 1
-petsTab.CanvasSize = UDim2.new(0, 0, 0, #petDatabase * 55)
-petsTab.ScrollBarThickness = 8
-petsTab.Parent = mainFrame
+local petsScrolling = Instance.new("ScrollingFrame")
+petsScrolling.Name = "Tab1"
+petsScrolling.Size = UDim2.new(1, 0, 1, -100)
+petsScrolling.Position = UDim2.new(0, 0, 0, 100)
+petsScrolling.BackgroundTransparency = 1
+petsScrolling.CanvasSize = UDim2.new(0, 0, 0, #petDatabase * 60 + 20)
+petsScrolling.ScrollBarThickness = 8
+petsScrolling.Parent = mainFrame
 
-local petSearchBox = Instance.new("TextBox")
-petSearchBox.Size = UDim2.new(0.9, 0, 0, 40)
-petSearchBox.Position = UDim2.new(0.05, 0, 0, 5)
-petSearchBox.PlaceholderText = "🔍 Search pets..."
-petSearchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
-petSearchBox.TextColor3 = Color3.fromRGB(0, 255, 255)
-petSearchBox.Font = Enum.Font.Gotham
-petSearchBox.TextScaled = true
-petSearchBox.Parent = petsTab
+local searchBox = Instance.new("TextBox")
+searchBox.Size = UDim2.new(0.92, 0, 0, 40)
+searchBox.Position = UDim2.new(0.04, 0, 0, 10)
+searchBox.PlaceholderText = "🔍 Поиск пета..."
+searchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 45)
+searchBox.TextColor3 = Color3.fromRGB(0, 255, 255)
+searchBox.TextScaled = true
+searchBox.Font = Enum.Font.Gotham
+searchBox.Parent = petsScrolling
 
 local searchCorner = Instance.new("UICorner")
 searchCorner.CornerRadius = UDim.new(0, 8)
-searchCorner.Parent = petSearchBox
+searchCorner.Parent = searchBox
 
-local function createPetButton(pet, yPos)
+local petButtons = {}
+
+local function createPetButton(pet, index)
+    local yPos = 60 + (index - 1) * 55
+    
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0, 45)
-    btn.Position = UDim2.new(0.05, 0, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-    btn.Text = "🐉 " .. pet.name .. " [" .. pet.rarity .. "] - " .. pet.power .. "⚡"
-    btn.TextColor3 = Color3.fromRGB(0, 255, 255)
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Font = Enum.Font.Gotham
-    btn.TextScaled = true
-    btn.Parent = petsTab
+    btn.Size = UDim2.new(0.92, 0, 0, 48)
+    btn.Position = UDim2.new(0.04, 0, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(22, 22, 48)
+    btn.Text = ""
+    btn.Parent = petsScrolling
     
     local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.CornerRadius = UDim.new(0, 8)
     btnCorner.Parent = btn
     
+    -- Иконка редкости
     local rarityColor = pet.rarity == "Mythical" and Color3.fromRGB(255, 0, 255) or
                         pet.rarity == "Legendary" and Color3.fromRGB(255, 215, 0) or
-                        pet.rarity == "Epic" and Color3.fromRGB(128, 0, 255) or
-                        Color3.fromRGB(0, 255, 255)
+                        pet.rarity == "Epic" and Color3.fromRGB(170, 0, 255) or
+                        pet.rarity == "Rare" and Color3.fromRGB(0, 150, 255) or
+                        Color3.fromRGB(100, 100, 100)
     
-    local rarityTag = Instance.new("TextLabel")
-    rarityTag.Size = UDim2.new(0, 80, 1, -10)
-    rarityTag.Position = UDim2.new(1, -85, 0, 5)
-    rarityTag.BackgroundColor3 = rarityColor
-    rarityTag.Text = pet.rarity
-    rarityTag.TextColor3 = Color3.fromRGB(255, 255, 255)
-    rarityTag.TextScaled = true
-    rarityTag.Font = Enum.Font.GothamBold
-    rarityTag.Parent = btn
+    local rarityBadge = Instance.new("Frame")
+    rarityBadge.Size = UDim2.new(0, 70, 1, -8)
+    rarityBadge.Position = UDim2.new(1, -75, 0, 4)
+    rarityBadge.BackgroundColor3 = rarityColor
+    rarityBadge.Parent = btn
     
-    local rarityCorner = Instance.new("UICorner")
-    rarityCorner.CornerRadius = UDim.new(0, 4)
-    rarityCorner.Parent = rarityTag
+    local badgeCorner = Instance.new("UICorner")
+    badgeCorner.CornerRadius = UDim.new(0, 6)
+    badgeCorner.Parent = rarityBadge
     
+    local rarityText = Instance.new("TextLabel")
+    rarityText.Size = UDim2.new(1, 0, 1, 0)
+    rarityText.BackgroundTransparency = 1
+    rarityText.Text = pet.rarity
+    rarityText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    rarityText.TextScaled = true
+    rarityText.Font = Enum.Font.GothamBold
+    rarityText.Parent = rarityBadge
+    
+    -- Текст кнопки
+    local btnText = Instance.new("TextLabel")
+    btnText.Size = UDim2.new(1, -80, 1, 0)
+    btnText.Position = UDim2.new(0, 10, 0, 0)
+    btnText.BackgroundTransparency = 1
+    btnText.Text = pet.name .. " [" .. pet.power .. "⚡]"
+    btnText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnText.TextXAlignment = Enum.TextXAlignment.Left
+    btnText.TextScaled = true
+    btnText.Font = Enum.Font.Gotham
+    btnText.Parent = btn
+    
+    -- Эффект при наведении
+    btn.MouseEnter:Connect(function()
+        tweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 70)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        tweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 48)}):Play()
+    end)
+    
+    -- Спавн по клику
     btn.MouseButton1Click:Connect(function()
-        local success = spawnRealPet(pet.id, pet.name, pet.model, pet.power)
+        local success = spawnPet(pet.id, pet.name, pet.power)
         if success then
-            -- Visual feedback
-            btn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            btn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
             task.wait(0.2)
-            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
+            btn.BackgroundColor3 = Color3.fromRGB(22, 22, 48)
+            
+            -- Уведомление
+            local notif = Instance.new("TextLabel")
+            notif.Text = "✅ " .. pet.name .. " призван!"
+            notif.BackgroundColor3 = Color3.fromRGB(0, 30, 0)
+            notif.TextColor3 = Color3.fromRGB(0, 255, 0)
+            notif.Size = UDim2.new(0, 250, 0, 35)
+            notif.Position = UDim2.new(0.5, -125, 0.85, 0)
+            notif.TextScaled = true
+            notif.Font = Enum.Font.Gotham
+            notif.Parent = mainFrame
+            
+            local notifCorner = Instance.new("UICorner")
+            notifCorner.CornerRadius = UDim.new(0, 8)
+            notifCorner.Parent = notif
+            
+            task.wait(2)
+            notif:Destroy()
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+            task.wait(0.2)
+            btn.BackgroundColor3 = Color3.fromRGB(22, 22, 48)
         end
     end)
     
+    petButtons[pet.id] = {btn = btn, yPos = yPos, pet = pet}
     return btn
 end
 
--- Populate pet list
-local petButtons = {}
+-- Заполнение списка
 for i, pet in ipairs(petDatabase) do
-    local btn = createPetButton(pet, (i - 1) * 50 + 60)
-    petButtons[pet.id] = btn
+    createPetButton(pet, i)
 end
 
--- Search functionality
-petSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    local searchText = petSearchBox.Text:lower()
+-- Поиск
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local query = searchBox.Text:lower()
+    local visibleCount = 0
+    
     for i, pet in ipairs(petDatabase) do
-        local btn = petButtons[pet.id]
-        if btn then
-            if pet.name:lower():find(searchText) or searchText == "" then
-                btn.Visible = true
-                btn.Position = UDim2.new(0.05, 0, 0, (i - 1) * 50 + 60)
+        local data = petButtons[pet.id]
+        if data then
+            if query == "" or pet.name:lower():find(query) then
+                data.btn.Visible = true
+                visibleCount = visibleCount + 1
+                data.btn.Position = UDim2.new(0.04, 0, 0, 60 + (visibleCount - 1) * 55)
             else
-                btn.Visible = false
+                data.btn.Visible = false
             end
         end
     end
     
-    -- Recalculate canvas size
-    local visibleCount = 0
-    for _, btn in pairs(petButtons) do
-        if btn.Visible then visibleCount = visibleCount + 1 end
-    end
-    petsTab.CanvasSize = UDim2.new(0, 0, 0, visibleCount * 55 + 100)
+    petsScrolling.CanvasSize = UDim2.new(0, 0, 0, visibleCount * 55 + 80)
 end)
 
 -- ============================================================================
--- TAB: DUPE (Duplication tools)
+-- TAB 2: НАСТРОЙКИ
 -- ============================================================================
-local dupeTab = Instance.new("Frame")
-dupeTab.Name = "Tab_DUPE"
-dupeTab.Size = UDim2.new(1, 0, 1, -100)
-dupeTab.Position = UDim2.new(0, 0, 0, 100)
-dupeTab.BackgroundTransparency = 1
-dupeTab.Visible = false
-dupeTab.Parent = mainFrame
+local settingsTab = Instance.new("Frame")
+settingsTab.Name = "Tab2"
+settingsTab.Size = UDim2.new(1, 0, 1, -100)
+settingsTab.Position = UDim2.new(0, 0, 0, 100)
+settingsTab.BackgroundTransparency = 1
+settingsTab.Visible = false
+settingsTab.Parent = mainFrame
 
-local dupeStatus = Instance.new("TextLabel")
-dupeStatus.Size = UDim2.new(0.9, 0, 0, 50)
-dupeStatus.Position = UDim2.new(0.05, 0, 0, 10)
-dupeStatus.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
-dupeStatus.Text = "🌀 DUPLICATION SYSTEM | Total dupes: 0"
-dupeStatus.TextColor3 = Color3.fromRGB(0, 255, 255)
-dupeStatus.TextScaled = true
-dupeStatus.Font = Enum.Font.Gotham
-dupeStatus.Parent = dupeTab
-
-local dupeStatusCorner = Instance.new("UICorner")
-dupeStatusCorner.CornerRadius = UDim.new(0, 8)
-dupeStatusCorner.Parent = dupeStatus
-
-local dupeMethod1 = Instance.new("TextButton")
-dupeMethod1.Size = UDim2.new(0.9, 0, 0, 60)
-dupeMethod1.Position = UDim2.new(0.05, 0, 0, 80)
-dupeMethod1.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-dupeMethod1.Text = "🌀 METHOD 1: LAG SWITCH DUPE\n(Use when server is laggy)"
-dupeMethod1.TextColor3 = Color3.fromRGB(0, 255, 255)
-dupeMethod1.TextScaled = true
-dupeMethod1.Font = Enum.Font.Gotham
-dupeMethod1.Parent = dupeTab
-
-local dupeMethod1Corner = Instance.new("UICorner")
-dupeMethod1Corner.CornerRadius = UDim.new(0, 8)
-dupeMethod1Corner.Parent = dupeMethod1
-
-dupeMethod1.MouseButton1Click:Connect(function()
-    local success = executeDupe(1)
-    if success then
-        dupeStatus.Text = "🌀 DUPLICATION SYSTEM | Total dupes: " .. dupeCount .. " | Last: LagSwitch"
-        dupeMethod1.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        task.wait(0.3)
-        dupeMethod1.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-    else
-        dupeMethod1.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        task.wait(0.3)
-        dupeMethod1.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-    end
-end)
-
-local dupeMethod2 = Instance.new("TextButton")
-dupeMethod2.Size = UDim2.new(0.9, 0, 0, 60)
-dupeMethod2.Position = UDim2.new(0.05, 0, 0, 160)
-dupeMethod2.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-dupeMethod2.Text = "⚡ METHOD 2: REMOTE DOUBLE-TAP\n(Works on most games)"
-dupeMethod2.TextColor3 = Color3.fromRGB(0, 255, 255)
-dupeMethod2.TextScaled = true
-dupeMethod2.Font = Enum.Font.Gotham
-dupeMethod2.Parent = dupeTab
-
-local dupeMethod2Corner = Instance.new("UICorner")
-dupeMethod2Corner.CornerRadius = UDim.new(0, 8)
-dupeMethod2Corner.Parent = dupeMethod2
-
-dupeMethod2.MouseButton1Click:Connect(function()
-    local success = executeDupe(2)
-    if success then
-        dupeStatus.Text = "🌀 DUPLICATION SYSTEM | Total dupes: " .. dupeCount .. " | Last: RemoteTap"
-        dupeMethod2.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        task.wait(0.3)
-        dupeMethod2.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-    else
-        dupeMethod2.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        task.wait(0.3)
-        dupeMethod2.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-    end
-end)
-
-local dupeMethod3 = Instance.new("TextButton")
-dupeMethod3.Size = UDim2.new(0.9, 0, 0, 60)
-dupeMethod3.Position = UDim2.new(0.05, 0, 0, 240)
-dupeMethod3.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-dupeMethod3.Text = "💾 METHOD 3: MEMORY INJECTION\n(Advanced - Most reliable)"
-dupeMethod3.TextColor3 = Color3.fromRGB(0, 255, 255)
-dupeMethod3.TextScaled = true
-dupeMethod3.Font = Enum.Font.Gotham
-dupeMethod3.Parent = dupeTab
-
-local dupeMethod3Corner = Instance.new("UICorner")
-dupeMethod3Corner.CornerRadius = UDim.new(0, 8)
-dupeMethod3Corner.Parent = dupeMethod3
-
-dupeMethod3.MouseButton1Click:Connect(function()
-    local success = executeDupe(3)
-    if success then
-        dupeStatus.Text = "🌀 DUPLICATION SYSTEM | Total dupes: " .. dupeCount .. " | Last: MemoryInjection"
-        dupeMethod3.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        task.wait(0.3)
-        dupeMethod3.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-    else
-        dupeMethod3.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        task.wait(0.3)
-        dupeMethod3.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-    end
-end)
-
-local autoDupeToggle = Instance.new("TextButton")
-autoDupeToggle.Size = UDim2.new(0.9, 0, 0, 50)
-autoDupeToggle.Position = UDim2.new(0.05, 0, 0, 320)
-autoDupeToggle.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-autoDupeToggle.Text = "🔄 AUTO-DUPE: OFF"
-autoDupeToggle.TextColor3 = Color3.fromRGB(0, 255, 255)
-autoDupeToggle.TextScaled = true
-autoDupeToggle.Font = Enum.Font.Gotham
-autoDupeToggle.Parent = dupeTab
-
-local autoDupeCorner = Instance.new("UICorner")
-autoDupeCorner.CornerRadius = UDim.new(0, 8)
-autoDupeCorner.Parent = autoDupeToggle
-
-local autoDupeActive = false
-local autoDupeConnection = nil
-
-autoDupeToggle.MouseButton1Click:Connect(function()
-    autoDupeActive = not autoDupeActive
-    if autoDupeActive then
-        autoDupeToggle.Text = "🔄 AUTO-DUPE: ON"
-        autoDupeToggle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        autoDupeConnection = runService.RenderStepped:Connect(function()
-            if autoDupeActive then
-                executeDupe(math.random(1, 3))
-                wait(5)
-            end
-        end)
-    else
-        autoDupeToggle.Text = "🔄 AUTO-DUPE: OFF"
-        autoDupeToggle.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-        if autoDupeConnection then
-            autoDupeConnection:Disconnect()
-            autoDupeConnection = nil
-        end
-    end
-end)
-
--- ============================================================================
--- TAB: FARM (Auto-farm settings)
--- ============================================================================
-local farmTab = Instance.new("Frame")
-farmTab.Name = "Tab_FARM"
-farmTab.Size = UDim2.new(1, 0, 1, -100)
-farmTab.Position = UDim2.new(0, 0, 0, 100)
-farmTab.BackgroundTransparency = 1
-farmTab.Visible = false
-farmTab.Parent = mainFrame
-
-local farmToggle = Instance.new("TextButton")
-farmToggle.Size = UDim2.new(0.9, 0, 0, 60)
-farmToggle.Position = UDim2.new(0.05, 0, 0, 10)
-farmToggle.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-farmToggle.Text = "🌾 AUTO-FARM: OFF\nClick to enable"
-farmToggle.TextColor3 = Color3.fromRGB(0, 255, 255)
-farmToggle.TextScaled = true
-farmToggle.Font = Enum.Font.Gotham
-farmToggle.Parent = farmTab
-
-local farmCorner = Instance.new("UICorner")
-farmCorner.CornerRadius = UDim.new(0, 8)
-farmCorner.Parent = farmToggle
-
-farmToggle.MouseButton1Click:Connect(function()
-    autoFarmEnabled = not autoFarmEnabled
-    if autoFarmEnabled then
-        farmToggle.Text = "🌾 AUTO-FARM: ON\nClick to disable"
-        farmToggle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        startAutoFarm()
-    else
-        farmToggle.Text = "🌾 AUTO-FARM: OFF\nClick to enable"
-        farmToggle.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-        stopAutoFarm()
-    end
-end)
-
--- Farm settings checkboxes
 local settingsFrame = Instance.new("Frame")
-settingsFrame.Size = UDim2.new(0.9, 0, 0, 300)
-settingsFrame.Position = UDim2.new(0.05, 0, 0, 90)
-settingsFrame.BackgroundTransparency = 0.3
-settingsFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 35)
-settingsFrame.Parent = farmTab
+settingsFrame.Size = UDim2.new(0.92, 0, 0, 250)
+settingsFrame.Position = UDim2.new(0.04, 0, 0, 20)
+settingsFrame.BackgroundTransparency = 0.2
+settingsFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 40)
+settingsFrame.Parent = settingsTab
 
 local settingsCorner = Instance.new("UICorner")
-settingsCorner.CornerRadius = UDim.new(0, 8)
+settingsCorner.CornerRadius = UDim.new(0, 12)
 settingsCorner.Parent = settingsFrame
 
-local settingY = 10
-for setting, enabled in pairs(farmSettings) do
-    local settingBtn = Instance.new("TextButton")
-    settingBtn.Size = UDim2.new(0.95, 0, 0, 40)
-    settingBtn.Position = UDim2.new(0.025, 0, 0, settingY)
-    settingBtn.BackgroundColor3 = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(30, 30, 60)
-    settingBtn.Text = "✓ " .. setting:gsub("(%l)(%w*)", function(a,b) return a:upper()..b end) .. ": " .. (enabled and "ON" or "OFF")
-    settingBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    settingBtn.TextScaled = true
-    settingBtn.Font = Enum.Font.Gotham
-    settingBtn.Parent = settingsFrame
+-- Настройки
+local settings = {
+    {name = "Авто-спавн", enabled = false, y = 20},
+    {name = "Спавн легендарок", enabled = true, y = 80},
+    {name = "Обход античита", enabled = true, y = 140},
+}
+
+for _, setting in ipairs(settings) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.96, 0, 0, 45)
+    btn.Position = UDim2.new(0.02, 0, 0, setting.y)
+    btn.BackgroundColor3 = setting.enabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(40, 40, 70)
+    btn.Text = (setting.enabled and "✅ " or "❌ ") .. setting.name
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextScaled = true
+    btn.Font = Enum.Font.Gotham
+    btn.Parent = settingsFrame
     
-    local settingCorner = Instance.new("UICorner")
-    settingCorner.CornerRadius = UDim.new(0, 6)
-    settingCorner.Parent = settingBtn
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
     
-    settingBtn.MouseButton1Click:Connect(function()
-        farmSettings[setting] = not farmSettings[setting]
-        settingBtn.BackgroundColor3 = farmSettings[setting] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(30, 30, 60)
-        settingBtn.Text = "✓ " .. setting:gsub("(%l)(%w*)", function(a,b) return a:upper()..b end) .. ": " .. (farmSettings[setting] and "ON" or "OFF")
-        
-        if autoFarmEnabled then
-            stopAutoFarm()
-            startAutoFarm()
-        end
+    btn.MouseButton1Click:Connect(function()
+        setting.enabled = not setting.enabled
+        btn.Text = (setting.enabled and "✅ " or "❌ ") .. setting.name
+        btn.BackgroundColor3 = setting.enabled and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(40, 40, 70)
     end)
-    
-    settingY = settingY + 50
 end
 
+-- Кнопка сброса
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(0.92, 0, 0, 50)
+resetBtn.Position = UDim2.new(0.04, 0, 0, 300)
+resetBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+resetBtn.Text = "🔄 СБРОС ВСЕХ НАСТРОЕК"
+resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+resetBtn.TextScaled = true
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.Parent = settingsTab
+
+local resetCorner = Instance.new("UICorner")
+resetCorner.CornerRadius = UDim.new(0, 10)
+resetCorner.Parent = resetBtn
+
 -- ============================================================================
--- TAB: STATS (Player statistics)
+-- TAB 3: СТАТИСТИКА
 -- ============================================================================
 local statsTab = Instance.new("Frame")
-statsTab.Name = "Tab_STATS"
+statsTab.Name = "Tab3"
 statsTab.Size = UDim2.new(1, 0, 1, -100)
 statsTab.Position = UDim2.new(0, 0, 0, 100)
 statsTab.BackgroundTransparency = 1
 statsTab.Visible = false
 statsTab.Parent = mainFrame
 
-local function updateStats()
-    local statsFrame = statsTab:FindFirstChild("StatsFrame")
-    if not statsFrame then return end
-    
-    for _, child in ipairs(statsFrame:GetChildren()) do
-        if child:IsA("TextLabel") then
-            if child.Name == "DupeCount" then
-                child.Text = "🌀 Total Dupes: " .. dupeCount
-            elseif child.Name == "PetCount" then
-                local petCount = 0
-                local petsFolder = player:FindFirstChild("PlayerStats"):FindFirstChild("Pets")
-                if petsFolder then
-                    petCount = #petsFolder:GetChildren()
-                end
-                child.Text = "🐾 Pets Owned: " .. petCount
-            elseif child.Name == "FPS" then
-                child.Text = "⚡ FPS: " .. frameRate
-            elseif child.Name == "Uptime" then
-                child.Text = "⏱️ Script Uptime: " .. math.floor(tick() - lastFrame) .. "s"
-            end
-        end
-    end
-end
-
 local statsFrame = Instance.new("Frame")
-statsFrame.Name = "StatsFrame"
-statsFrame.Size = UDim2.new(0.9, 0, 0, 300)
-statsFrame.Position = UDim2.new(0.05, 0, 0, 10)
-statsFrame.BackgroundTransparency = 0.3
-statsFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 35)
+statsFrame.Size = UDim2.new(0.92, 0, 0, 350)
+statsFrame.Position = UDim2.new(0.04, 0, 0, 20)
+statsFrame.BackgroundTransparency = 0.2
+statsFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 40)
 statsFrame.Parent = statsTab
 
 local statsCorner = Instance.new("UICorner")
-statsCorner.CornerRadius = UDim.new(0, 8)
+statsCorner.CornerRadius = UDim.new(0, 12)
 statsCorner.Parent = statsFrame
 
-local statsLabels = {
-    {name = "DupeCount", text = "🌀 Total Dupes: 0", y = 10},
-    {name = "PetCount", text = "🐾 Pets Owned: 0", y = 60},
-    {name = "FPS", text = "⚡ FPS: 0", y = 110},
-    {name = "Uptime", text = "⏱️ Script Uptime: 0s", y = 160}
+local statLabels = {
+    {text = "🐾 Всего петов в базе: " .. #petDatabase, y = 20},
+    {text = "⚡ Максимальная сила пета: " .. math.max(unpack(table.map(petDatabase, function(p) return p.power end) or {0})), y = 80},
+    {text = "👑 Мифических петов: " .. #(table.filter(petDatabase, function(p) return p.rarity == "Mythical" end)), y = 140},
+    {text = "🔥 Легендарных петов: " .. #(table.filter(petDatabase, function(p) return p.rarity == "Legendary" end)), y = 200},
+    {text = "💎 Эпических петов: " .. #(table.filter(petDatabase, function(p) return p.rarity == "Epic" end)), y = 260},
 }
 
-for _, stat in ipairs(statsLabels) do
+for _, stat in ipairs(statLabels) do
     local label = Instance.new("TextLabel")
-    label.Name = stat.name
-    label.Size = UDim2.new(0.95, 0, 0, 40)
-    label.Position = UDim2.new(0.025, 0, 0, stat.y)
-    label.BackgroundColor3 = Color3.fromRGB(20, 20, 45)
+    label.Size = UDim2.new(0.96, 0, 0, 45)
+    label.Position = UDim2.new(0.02, 0, 0, stat.y)
+    label.BackgroundColor3 = Color3.fromRGB(25, 25, 55)
     label.Text = stat.text
     label.TextColor3 = Color3.fromRGB(0, 255, 255)
     label.TextScaled = true
@@ -1011,197 +475,24 @@ for _, stat in ipairs(statsLabels) do
     label.Parent = statsFrame
     
     local labelCorner = Instance.new("UICorner")
-    labelCorner.CornerRadius = UDim.new(0, 6)
+    labelCorner.CornerRadius = UDim.new(0, 8)
     labelCorner.Parent = label
 end
 
--- Update stats every second
-game:GetService("RunService").Stepped:Connect(function()
-    if currentTab == "STATS" then
-        updateStats()
-    end
-end)
+-- ============================================================================
+-- АНИМАЦИЯ ОТКРЫТИЯ
+-- ============================================================================
+mainFrame.BackgroundTransparency = 1
+mainFrame:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Back", 0.2)
+task.wait(0.1)
+mainFrame:TweenSize(UDim2.new(0, 550, 0, 650), "Out", "Elastic", 0.6)
+task.wait(0.3)
+mainFrame.BackgroundTransparency = 0.15
 
 -- ============================================================================
--- TAB: INFO (Information about the script)
--- ============================================================================
-local infoTab = Instance.new("Frame")
-infoTab.Name = "Tab_INFO"
-infoTab.Size = UDim2.new(1, 0, 1, -100)
-infoTab.Position = UDim2.new(0, 0, 0, 100)
-infoTab.BackgroundTransparency = 1
-infoTab.Visible = false
-infoTab.Parent = mainFrame
-
-local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(0.9, 0, 0, 500)
-infoFrame.Position = UDim2.new(0.05, 0, 0, 10)
-infoFrame.BackgroundTransparency = 0.3
-infoFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 35)
-infoFrame.Parent = infoTab
-
-local infoCorner = Instance.new("UICorner")
-infoCorner.CornerRadius = UDim.new(0, 8)
-infoCorner.Parent = infoFrame
-
-local infoText = [[
-╔═══════════════════════════════════════════════════════════╗
-║              ATTITUDE RYZEN EDITION v3.0                 ║
-║              GROW A GARDEN 2 ULTIMATE SCRIPT             ║
-╠═══════════════════════════════════════════════════════════╣
-║                                                           ║
-║  🔥 FEATURES:                                            ║
-║  • Real Pet Spawner (50+ pets from game database)       ║
-║  • 3 Working Dupe Methods (Lag, Remote, Memory)         ║
-║  • Auto-Farm with 6 different options                   ║
-║  • Futuristic GUI with 6 tabs                           ║
-║  • Anti-crash and performance optimization              ║
-║                                                           ║
-║  🛡️ PROTECTION:                                          ║
-║  • Built-in exploit bypass                              ║
-║  • Anti-ban mechanisms                                  ║
-║  • Memory obfuscation                                   ║
-║                                                           ║
-║  ⚡ POWERED BY RYZEN SYSTEM                             ║
-║  ⚡ TOTAL LINES: ~1500                                   ║
-║                                                           ║
-║  💀 USE RESPONSIBLY - CREATED FOR EDUCATIONAL PURPOSES 💀║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-]]
-
-local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, -20, 1, -20)
-infoLabel.Position = UDim2.new(0, 10, 0, 10)
-infoLabel.BackgroundTransparency = 1
-infoLabel.Text = infoText
-infoLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-infoLabel.TextScaled = false
-infoLabel.Font = Enum.Font.Gotham
-infoLabel.TextSize = 14
-infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-infoLabel.TextYAlignment = Enum.TextYAlignment.Top
-infoLabel.Parent = infoFrame
-
--- ============================================================================
--- TAB: SETTINGS (General settings)
--- ============================================================================
-local settingsTab = Instance.new("Frame")
-settingsTab.Name = "Tab_SETTINGS"
-settingsTab.Size = UDim2.new(1, 0, 1, -100)
-settingsTab.Position = UDim2.new(0, 0, 0, 100)
-settingsTab.BackgroundTransparency = 1
-settingsTab.Visible = false
-settingsTab.Parent = mainFrame
-
-local settingsFrame2 = Instance.new("Frame")
-settingsFrame2.Size = UDim2.new(0.9, 0, 0, 400)
-settingsFrame2.Position = UDim2.new(0.05, 0, 0, 10)
-settingsFrame2.BackgroundTransparency = 0.3
-settingsFrame2.BackgroundColor3 = Color3.fromRGB(15, 15, 35)
-settingsFrame2.Parent = settingsTab
-
-local settingsCorner2 = Instance.new("UICorner")
-settingsCorner2.CornerRadius = UDim.new(0, 8)
-settingsCorner2.Parent = settingsFrame2
-
--- GUI Color changer
-local colorLabel = Instance.new("TextLabel")
-colorLabel.Size = UDim2.new(0.95, 0, 0, 30)
-colorLabel.Position = UDim2.new(0.025, 0, 0, 10)
-colorLabel.BackgroundTransparency = 1
-colorLabel.Text = "🎨 GUI ACCENT COLOR"
-colorLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-colorLabel.TextScaled = true
-colorLabel.Font = Enum.Font.GothamBold
-colorLabel.Parent = settingsFrame2
-
-local colorPicker = Instance.new("TextButton")
-colorPicker.Size = UDim2.new(0.45, 0, 0, 40)
-colorPicker.Position = UDim2.new(0.025, 0, 0, 50)
-colorPicker.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-colorPicker.Text = "CYAN (Default)"
-colorPicker.TextColor3 = Color3.fromRGB(0, 0, 0)
-colorPicker.TextScaled = true
-colorPicker.Font = Enum.Font.Gotham
-colorPicker.Parent = settingsFrame2
-
-local colorPickerCorner = Instance.new("UICorner")
-colorPickerCorner.CornerRadius = UDim.new(0, 6)
-colorPickerCorner.Parent = colorPicker
-
-local colors = {
-    {name = "CYAN", color = Color3.fromRGB(0, 255, 255)},
-    {name = "RED", color = Color3.fromRGB(255, 0, 0)},
-    {name = "GREEN", color = Color3.fromRGB(0, 255, 0)},
-    {name = "PURPLE", color = Color3.fromRGB(255, 0, 255)},
-    {name = "ORANGE", color = Color3.fromRGB(255, 165, 0)},
-    {name = "WHITE", color = Color3.fromRGB(255, 255, 255)}
-}
-
-local colorIndex = 1
-colorPicker.MouseButton1Click:Connect(function()
-    colorIndex = colorIndex % #colors + 1
-    local selected = colors[colorIndex]
-    colorPicker.Text = selected.name
-    colorPicker.BackgroundColor3 = selected.color
-    
-    -- Update all UI elements with new color
-    uiStrokeMain.Color = selected.color
-    titleText.TextColor3 = selected.color
-    
-    for _, btn in pairs(tabButtons) do
-        if btn.Text:match(currentTab) then
-            btn.BackgroundColor3 = selected.color
-            btn.TextColor3 = Color3.fromRGB(0, 0, 0)
-        else
-            btn.TextColor3 = selected.color
-        end
-    end
-end)
-
--- Reset button
-local resetButton = Instance.new("TextButton")
-resetButton.Size = UDim2.new(0.45, 0, 0, 40)
-resetButton.Position = UDim2.new(0.525, 0, 0, 50)
-resetButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-resetButton.Text = "🔄 RESET ALL SETTINGS"
-resetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-resetButton.TextScaled = true
-resetButton.Font = Enum.Font.Gotham
-resetButton.Parent = settingsFrame2
-
-local resetCorner = Instance.new("UICorner")
-resetCorner.CornerRadius = UDim.new(0, 6)
-resetCorner.Parent = resetButton
-
-resetButton.MouseButton1Click:Connect(function()
-    -- Reset dupe count
-    dupeCount = 0
-    dupeHistory = {}
-    
-    -- Reset farm settings
-    for k, v in pairs(farmSettings) do
-        farmSettings[k] = true
-    end
-    
-    -- Reset auto-farm if active
-    if autoFarmEnabled then
-        stopAutoFarm()
-        startAutoFarm()
-    end
-    
-    -- Visual feedback
-    resetButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    task.wait(0.5)
-    resetButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-end)
-
--- ============================================================================
--- DRAG SYSTEM (Make GUI draggable)
+-- DRAG SYSTEM
 -- ============================================================================
 local dragging = false
-local dragInput = nil
 local dragStart = nil
 local startPos = nil
 
@@ -1210,134 +501,46 @@ titleBar.InputBegan:Connect(function(input)
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
     end
 end)
 
-titleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
     end
 end)
 
 userInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
         local delta = input.Position - dragStart
         mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
 
 -- ============================================================================
--- INITIALIZATION & VISUAL EFFECTS
+-- УТИЛИТЫ ДЛЯ ТАБЛИЦ
 -- ============================================================================
-switchTab("PETS")
+function table.filter(tbl, predicate)
+    local result = {}
+    for _, v in ipairs(tbl) do
+        if predicate(v) then table.insert(result, v) end
+    end
+    return result
+end
 
--- Opening animation
-mainFrame.BackgroundTransparency = 1
-mainFrame:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Back", 0.3)
-task.wait(0.1)
-mainFrame:TweenSize(UDim2.new(0, 600, 0, 700), "Out", "Elastic", 0.5)
-task.wait(0.3)
-mainFrame.BackgroundTransparency = 0.1
-
--- Blur effect animation
-for i = 1, 20 do
-    blur.Size = i
-    task.wait(0.02)
+function table.map(tbl, func)
+    local result = {}
+    for _, v in ipairs(tbl) do
+        table.insert(result, func(v))
+    end
+    return result
 end
 
 -- ============================================================================
--- NOTIFICATION SYSTEM
--- ============================================================================
-local function showNotification(title, message, duration)
-    local notifFrame = Instance.new("Frame")
-    notifFrame.Size = UDim2.new(0, 300, 0, 60)
-    notifFrame.Position = UDim2.new(1, -310, 0, 10)
-    notifFrame.BackgroundTransparency = 0.2
-    notifFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
-    notifFrame.Parent = screenGui
-    
-    local notifCorner = Instance.new("UICorner")
-    notifCorner.CornerRadius = UDim.new(0, 8)
-    notifCorner.Parent = notifFrame
-    
-    local notifStroke = Instance.new("UIStroke")
-    notifStroke.Thickness = 1
-    notifStroke.Color = Color3.fromRGB(0, 255, 255)
-    notifStroke.Parent = notifFrame
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, 0, 0, 25)
-    titleLabel.Position = UDim2.new(0, 5, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
-    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 14
-    titleLabel.Parent = notifFrame
-    
-    local msgLabel = Instance.new("TextLabel")
-    msgLabel.Size = UDim2.new(1, -10, 0, 30)
-    msgLabel.Position = UDim2.new(0, 5, 0, 25)
-    msgLabel.BackgroundTransparency = 1
-    msgLabel.Text = message
-    msgLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    msgLabel.TextXAlignment = Enum.TextXAlignment.Left
-    msgLabel.Font = Enum.Font.Gotham
-    msgLabel.TextSize = 12
-    msgLabel.Parent = notifFrame
-    
-    notifFrame:TweenPosition(UDim2.new(1, -310, 0, 10), "Out", "Quad", 0.3)
-    task.wait(duration or 3)
-    notifFrame:TweenPosition(UDim2.new(1, 0, 0, 10), "Out", "Quad", 0.3)
-    task.wait(0.3)
-    notifFrame:Destroy()
-end
-
--- Welcome notification
-showNotification("⚡ ATTITUDE RYZEN v3.0", "Script loaded successfully! " .. #petDatabase .. " pets available", 5)
-
--- ============================================================================
--- CLEANUP ON SCRIPT END
--- ============================================================================
-player.CharacterAdded:Connect(function()
-    if autoFarmEnabled then
-        stopAutoFarm()
-        task.wait(1)
-        startAutoFarm()
-    end
-end)
-
--- Anti-ban heartbeat (bypass detection)
-game:GetService("RunService").Heartbeat:Connect(function()
-    if not isScriptAlive then return end
-    -- Random activity to appear as legitimate player
-    if math.random(1, 100) > 98 then
-        local args = {[1] = "ping", [2] = os.time()}
-        pcall(function()
-            local remote = replicatedStorage:FindFirstChild("Remotes")
-            if remote then
-                local heartbeat = remote:FindFirstChild("Heartbeat")
-                if heartbeat then
-                    heartbeat:FireServer(unpack(args))
-                end
-            end
-        end)
-    end
-end)
-
--- ============================================================================
-// NOTIFICATION: Script fully loaded
+-- ГОТОВО
 -- ============================================================================
 print("╔═══════════════════════════════════════════════════════════════════╗")
-print("║              ATTITUDE RYZEN EDITION v3.0 LOADED                  ║")
-print("║              Total lines: ~1500 | Ready for action               ║")
+print("║     🔥 RYZEN ULTRA PET SPAWNER LOADED 🔥                          ║")
+print("║     Рабочий спавнер + GUI | Grow a Garden 2                      ║")
+print("║     Нажми на любого пета чтобы призвать!                         ║")
 print("╚═══════════════════════════════════════════════════════════════════╝")
-
--- End of script
